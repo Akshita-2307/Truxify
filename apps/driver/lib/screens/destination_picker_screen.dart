@@ -136,7 +136,7 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
       setState(() {
         _suggestions = suggestions;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) {
         return;
       }
@@ -144,6 +144,9 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
       setState(() {
         _suggestions = const <_SearchSuggestion>[];
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Search error: $e')),
+      );
     } finally {
       if (mounted) {
         setState(() {

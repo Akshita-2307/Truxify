@@ -59,4 +59,43 @@ void main() {
 
     expect(find.text('Error: Invalid route arguments'), findsOneWidget);
   });
+
+  testWidgets('ShellScreen preserves nested navigator routing state when switching tabs', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(_buildTestApp());
+    await _pumpTransition(tester);
+
+    // Switch to Profile tab
+    final profileTab = find.text('Profile');
+    expect(profileTab, findsOneWidget);
+    await tester.tap(profileTab);
+    await _pumpTransition(tester);
+
+    // Locate and tap the Documents tile on the Profile page
+    final documentsTile = find.text('Documents');
+    expect(documentsTile, findsOneWidget);
+    await tester.tap(documentsTile);
+    await _pumpTransition(tester);
+
+    // Verify DocumentsScreen is pushed and visible
+    expect(find.text('My Documents'), findsOneWidget);
+
+    // Switch back to Home tab
+    final homeTab = find.text('Home');
+    expect(homeTab, findsOneWidget);
+    await tester.tap(homeTab);
+    await _pumpTransition(tester);
+
+    // DocumentsScreen should be hidden
+    expect(find.text('My Documents'), findsNothing);
+
+    // Switch back to Profile tab
+    await tester.tap(profileTab);
+    await _pumpTransition(tester);
+
+    // DocumentsScreen should still be visible because state is preserved
+    expect(find.text('My Documents'), findsOneWidget);
+  });
 }
+

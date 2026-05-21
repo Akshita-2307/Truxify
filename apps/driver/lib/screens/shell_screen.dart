@@ -28,6 +28,24 @@ class _ShellScreenState extends State<ShellScreen> {
   final GlobalKey<NavigatorState> _earningsNavigatorKey = GlobalKey<NavigatorState>();
   final GlobalKey<NavigatorState> _profileNavigatorKey = GlobalKey<NavigatorState>();
   final ValueNotifier<int> _currentIndex = ValueNotifier<int>(0);
+  late final List<Widget> _tabs;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = [
+      _buildTabNavigator(_homeNavigatorKey, const HomeScreen()),
+      _buildTabNavigator(_tripsNavigatorKey, const TripsScreen()),
+      _buildTabNavigator(_earningsNavigatorKey, const EarningsScreen()),
+      _buildTabNavigator(
+        _profileNavigatorKey,
+        ProfileScreen(
+          onOpenDocuments: () => _profileNavigatorKey.currentState?.pushNamed(AppRoutes.documents),
+          onSelectTab: _openTab,
+        ),
+      ),
+    ];
+  }
 
   @override
   void dispose() {
@@ -53,8 +71,6 @@ class _ShellScreenState extends State<ShellScreen> {
     switch (settings.name) {
       case AppRoutes.myTruck:
         return truxifyPageRoute((context) => const MyTruckScreen());
-      case AppRoutes.earnings:
-        return truxifyPageRoute((context) => const EarningsScreen());
       case AppRoutes.tripDetail:
         final args = settings.arguments;
         if (args is! Trip) {
@@ -111,18 +127,7 @@ class _ShellScreenState extends State<ShellScreen> {
         builder: (context, currentIndex, _) {
           return IndexedStack(
             index: currentIndex,
-            children: [
-              _buildTabNavigator(_homeNavigatorKey, const HomeScreen()),
-              _buildTabNavigator(_tripsNavigatorKey, const TripsScreen()),
-              _buildTabNavigator(_earningsNavigatorKey, const EarningsScreen()),
-              _buildTabNavigator(
-                _profileNavigatorKey,
-                ProfileScreen(
-                  onOpenDocuments: () => _profileNavigatorKey.currentState?.pushNamed(AppRoutes.documents),
-                  onSelectTab: _openTab,
-                ),
-              ),
-            ],
+            children: _tabs,
           );
         },
       ),
