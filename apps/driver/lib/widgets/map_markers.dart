@@ -17,9 +17,11 @@ class RouteMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
@@ -38,7 +40,7 @@ class RouteMarker extends StatelessWidget {
         padding: const EdgeInsets.all(6),
         child: Icon(
           icon,
-          color: Colors.white,
+          color: colorScheme.onPrimary,
           size: 16,
         ),
       ),
@@ -53,9 +55,11 @@ class RouteCheckpointMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         shape: BoxShape.circle,
         border: Border.all(color: TruxifyColors.accent, width: 2),
         boxShadow: [
@@ -68,12 +72,17 @@ class RouteCheckpointMarker extends StatelessWidget {
       width: 24,
       height: 24,
       alignment: Alignment.center,
-      child: Text(
-        label,
-        style: GoogleFonts.dmSans(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: TruxifyColors.accentDark,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.clip,
+          style: GoogleFonts.dmSans(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: TruxifyColors.accentDark,
+          ),
         ),
       ),
     );
