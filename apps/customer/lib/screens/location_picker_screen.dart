@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../theme/app_theme.dart';
+import '../services/location_service.dart';
 import '../widgets/common_widgets.dart';
 
 class LocationPickResult {
@@ -38,9 +37,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
+  final LocationService _locationService = LocationService();
 
   Timer? _debounce;
-  List<_SearchSuggestion> _suggestions = const <_SearchSuggestion>[];
+  List<LocationSuggestion> _suggestions = const <LocationSuggestion>[];
   bool _isSearching = false;
   bool _isResolvingAddress = false;
   LatLng? _selectedPoint;
@@ -65,58 +65,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   Future<void> _searchPlaces(String query) async {
-    final trimmed = query.trim();
-    if (trimmed.length < 3) {
-      if (mounted) {
-        setState(() {
-          _suggestions = const <_SearchSuggestion>[];
-          _isSearching = false;
-        });
-      }
-      return;
-    }
-
     setState(() {
       _isSearching = true;
     });
 
-    final uri = Uri.https(
-      'nominatim.openstreetmap.org',
-      '/search',
-      <String, String>{
-        'q': trimmed,
-        'format': 'jsonv2',
-        'addressdetails': '1',
-        'limit': '6',
-      },
-    );
-
     try {
-      final response = await http.get(
-        uri,
-        headers: const <String, String>{
-          'Accept': 'application/json',
-          'User-Agent': 'Truxify Customer App',
-        },
-      );
-      if (response.statusCode != 200) {
-        throw Exception('Search failed');
-      }
-
-      final decoded = jsonDecode(response.body) as List<dynamic>;
-      final suggestions = decoded
-          .map((item) {
-            final json = item as Map<String, dynamic>;
-            final lat = double.tryParse('${json['lat']}');
-            final lon = double.tryParse('${json['lon']}');
-            final displayName = (json['display_name'] as String?)?.trim() ?? '';
-            if (lat == null || lon == null || displayName.isEmpty) {
-              return null;
-            }
-            return _SearchSuggestion(address: displayName, point: LatLng(lat, lon));
-          })
-          .whereType<_SearchSuggestion>()
-          .toList();
+      final suggestions = await _locationService.searchPlaces(query);
 
       if (!mounted) {
         return;
@@ -131,7 +85,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       }
 
       setState(() {
-        _suggestions = const <_SearchSuggestion>[];
+        _suggestions = const <LocationSuggestion>[];
       });
     } finally {
       if (mounted) {
@@ -154,39 +108,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       _isResolvingAddress = true;
     });
 
-    final uri = Uri.https(
-      'nominatim.openstreetmap.org',
-      '/reverse',
-      <String, String>{
-        'lat': point.latitude.toStringAsFixed(6),
-        'lon': point.longitude.toStringAsFixed(6),
-        'format': 'jsonv2',
-      },
-    );
-
     try {
-      final response = await http.get(
-        uri,
-        headers: const <String, String>{
-          'Accept': 'application/json',
-          'User-Agent': 'Truxify Customer App',
-        },
-      );
-      if (response.statusCode != 200) {
-        throw Exception('Reverse lookup failed');
-      }
-
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      final displayName = decoded['display_name'] as String?;
+      final resolvedAddress = await _locationService.resolveAddress(point);
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _selectedAddress = (displayName == null || displayName.trim().isEmpty)
-            ? 'Pinned location (${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)})'
-            : displayName;
+        _selectedAddress = resolvedAddress;
       });
     } catch (_) {
       if (!mounted) {
@@ -209,7 +139,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     setState(() {
       _selectedPoint = point;
       _selectedAddress = address;
-      _suggestions = const <_SearchSuggestion>[];
+      _suggestions = const <LocationSuggestion>[];
     });
 
     _mapController.move(point, 13);
@@ -361,11 +291,4 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       ),
     );
   }
-}
-
-class _SearchSuggestion {
-  const _SearchSuggestion({required this.address, required this.point});
-
-  final String address;
-  final LatLng point;
 }
