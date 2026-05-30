@@ -17,6 +17,9 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderStateMixin {
   TabController? _tabController;
   FreightFairController? _controller;
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+  String _searchQuery = '';
 
   @override
   void didChangeDependencies() {
@@ -38,7 +41,63 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
   @override
   void dispose() {
     _tabController?.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _searchQuery = '';
+        _searchController.clear();
+      }
+    });
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _searchQuery = value;
+    });
+  }
+
+  List<ActiveOrderData> get _filteredActiveOrders {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return mockActiveOrders;
+    }
+    return mockActiveOrders.where((order) {
+      return _orderMatches(query, [
+        order.orderId,
+        order.route,
+        order.driver,
+        order.milestone,
+        order.status,
+        order.eta,
+      ]);
+    }).toList();
+  }
+
+  List<HistoryOrderData> get _filteredHistoryOrders {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return mockHistoryOrders;
+    }
+    return mockHistoryOrders.where((order) {
+      return _orderMatches(query, [
+        order.orderId,
+        order.route,
+        order.driver,
+        order.date,
+        order.amount,
+        order.status,
+        order.truckNumber,
+      ]);
+    }).toList();
+  }
+
+  bool _orderMatches(String query, List<String> fields) {
+    return fields.any((value) => value.toLowerCase().contains(query));
   }
 
   @override
@@ -50,11 +109,41 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Orders', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                const Spacer(),
-                IconButton(onPressed: () {}, icon: const Icon(Icons.search_rounded)),
+                Row(
+                  children: [
+                    Text('Orders', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: _toggleSearch,
+                      icon: Icon(_isSearching ? Icons.close_rounded : Icons.search_rounded),
+                    ),
+                  ],
+                ),
+                if (_isSearching)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      onChanged: _onSearchChanged,
+                      decoration: InputDecoration(
+                        hintText: 'Search by order ID, route, driver or status',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.close_rounded),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _onSearchChanged('');
+                                },
+                              ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -71,10 +160,10 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
               children: [
                 ListView.separated(
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-                  itemCount: mockActiveOrders.length,
+                  itemCount: _filteredActiveOrders.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 14),
                   itemBuilder: (context, index) {
-                    final order = mockActiveOrders[index];
+                    final order = _filteredActiveOrders[index];
                     return ActiveOrderCard(
                       order: order,
                       onTap: () => Navigator.of(context).push(
@@ -85,10 +174,10 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
                 ),
                 ListView.separated(
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-                  itemCount: mockHistoryOrders.length,
+                  itemCount: _filteredHistoryOrders.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 14),
                   itemBuilder: (context, index) {
-                    final order = mockHistoryOrders[index];
+                    final order = _filteredHistoryOrders[index];
                     return HistoryOrderCard(
                       order: order,
                       onTap: () => Navigator.of(context).push(
