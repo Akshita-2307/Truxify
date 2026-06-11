@@ -54,7 +54,11 @@ void main() {
     await _pumpTransition(tester);
     expect(find.text('My Documents'), findsOneWidget);
 
-    await tester.pageBack();
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await _pumpTransition(tester);
+
+    // Scroll down to bring Logout tile into view
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
     await _pumpTransition(tester);
 
     expect(find.text('Logout'), findsOneWidget);
