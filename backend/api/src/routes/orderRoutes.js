@@ -669,7 +669,24 @@ router.post('/:id/verify-delivery', authenticate, requireRole(['driver']), verif
     // Successful verification — clear failure state
     await clearOtpState(orderId);
 
-    // Call complete_trip_tx RPC first to atomically update trip, driver stats, wallet, earnings, order status, and timeline.
+    const { data: preUpdatedOrder, error: updateErr } = await supabase.from('orders').update({
+      otp_verified: true, updated_at: new Date().toISOString()
+    })
+      .eq('id', orderId)
+      .not('otp_verified', 'eq', true)
+      .not('status', 'eq', 'cancelled')
+      .not('status', 'eq', 'payment_released')
+      .select('*')
+      .single();
+
+    if (updateErr) {
+      if (updateErr.code === 'PGRST116') {
+        return res.status(409).json({ error: 'Order was already cancelled or payment released.' });
+      }
+      return res.status(500).json({ error: 'Failed to verify OTP.', details: updateErr.message });
+    }
+
+    // Call complete_trip_tx RPC to atomically update trip, driver stats, wallet, earnings, order status, and timeline.
     const { error: rpcErr } = await supabase.rpc('complete_trip_tx', { p_order_id: orderId });
     if (rpcErr) {
       console.error('complete_trip_tx RPC failed:', rpcErr.message);
@@ -689,7 +706,7 @@ router.post('/:id/verify-delivery', authenticate, requireRole(['driver']), verif
     }
 
     // Escrow: release funds to driver after successful delivery verification
-    if (order.escrow_status === 'funded') {
+    if (updatedOrder.escrow_status === 'funded') {
       try {
         const { txHash } = await escrowRelease(order.order_display_id);
         if (txHash) {
@@ -703,7 +720,7 @@ router.post('/:id/verify-delivery', authenticate, requireRole(['driver']), verif
         console.error('[escrow] Release failed for order', orderId, ':', releaseErr.message);
       }
     } else {
-      console.log(`[escrow] Escrow not funded (status: ${order.escrow_status}) — skipping on-chain release.`);
+      console.log(`[escrow] Escrow not funded (status: ${updatedOrder.escrow_status}) — skipping on-chain release.`);
     }
 
     // Strip delivery_otp from updatedOrder to prevent exposure
@@ -805,12 +822,19 @@ router.post('/:id/cancel', authenticate, requireRole(['customer']), validatePara
     if (!order) return res.status(404).json({ error: 'Order not found.' });
     if (order.customer_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You do not own this order.' });
 
-    if (['delivered', 'payment_released'].includes(order.status)) {
-      return res.status(400).json({ error: 'Order cannot be cancelled after delivery or payment release.' });
+    const { data: updatedOrder, error: updateErr } = await supabase.from('orders')
+      .update({ status: 'cancelled', cancellation_reason: reason, updated_at: new Date().toISOString() })
+      .eq('order_display_id', orderId)
+      .not('otp_verified', 'eq', true)
+      .not('status', 'in', '("delivered","payment_released","cancelled")')
+      .select('cancellation_fee, order_display_id, status, cancellation_reason, escrow_status')
+      .single();
+    if (updateErr) {
+      if (updateErr.code === 'PGRST116') {
+        return res.status(409).json({ error: 'Order was already cancelled, delivered, or payment released. Cannot cancel.' });
+      }
+      return res.status(500).json({ error: 'Failed to cancel order.', details: updateErr.message });
     }
-
-    const { data: updatedOrder, error: updateErr } = await supabase.from('orders').update({ status: 'cancelled', cancellation_reason: reason, updated_at: new Date().toISOString() }).eq('order_display_id', orderId).select('cancellation_fee, order_display_id, status, cancellation_reason').single();
-    if (updateErr) return res.status(500).json({ error: 'Failed to cancel order.', details: updateErr.message });
 
     const cancellationFee = updatedOrder?.cancellation_fee ?? 0;
 
@@ -818,7 +842,7 @@ router.post('/:id/cancel', authenticate, requireRole(['customer']), validatePara
       .eq('order_display_id', order.order_display_id)
       .eq('milestone', 'Order Placed');
 
-    if (order.escrow_status === 'funded') {
+    if (updatedOrder.escrow_status === 'funded') {
       try {
         const { txHash } = await escrowRefund(order.order_display_id);
         if (txHash) {
@@ -832,7 +856,7 @@ router.post('/:id/cancel', authenticate, requireRole(['customer']), validatePara
         console.error('[escrow] Refund failed for order', orderId, ':', refundErr.message);
       }
     } else if (order.escrow_booking_id) {
-      console.log(`[escrow] Escrow not funded (status: ${order.escrow_status}) — skipping on-chain refund.`);
+      console.log(`[escrow] Escrow not funded (status: ${updatedOrder.escrow_status}) — skipping on-chain refund.`);
     }
 
     return res.json({ message: 'Order cancelled successfully.', cancellation_fee: cancellationFee, order: updatedOrder });
