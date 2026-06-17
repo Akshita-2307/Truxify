@@ -187,6 +187,9 @@ router.post('/', authenticate, requireRole(['customer']), validateBody(createOrd
       routeOrigin: pickup_address,
       routeDestination: drop_address,
     });
+    if (!mlResult || typeof mlResult.estimated_price !== 'number' || mlResult.estimated_price <= 0) {
+      throw new Error(`Invalid or non-positive price prediction: ${JSON.stringify(mlResult)}`);
+    }
     estimatedPrice = Math.round(mlResult.estimated_price * 100);
   } catch (mlErr) {
     console.warn('[ML] Price prediction unavailable, falling back to base pricing:', mlErr.message);
