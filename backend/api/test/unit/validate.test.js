@@ -37,11 +37,12 @@ describe('validateBody middleware', () => {
   });
 
   it('mutates req.body to parsed data', () => {
-    const req = { body: { name: 'Bob', age: 25 } };
+    const req = { body: { name: 'Bob', age: 25, extraField: 'should-be-removed' } };
     const res = makeRes();
     const next = makeNext();
     validateBody(schema)(req, res, next);
     expect(req.body).toEqual({ name: 'Bob', age: 25 });
+    expect(req.body.extraField).toBeUndefined();
   });
 
   it('returns 400 with field-level details when body is invalid', () => {
@@ -75,6 +76,23 @@ describe('validateBody middleware', () => {
     validateBody(schema)(req, res, next);
     expect(next).not.toHaveBeenCalled();
   });
+
+  it('throws when schema is invalid (does not have safeParse)', () => {
+    const req = { body: { name: 'Alice', age: 30 } };
+    const res = makeRes();
+    const next = makeNext();
+    expect(() => validateBody(null)(req, res, next)).toThrow();
+  });
+
+  it('passes all requests with empty schema object', () => {
+    const emptySchema = z.object({});
+    const req = { body: { randomField: 'value' } };
+    const res = makeRes();
+    const next = makeNext();
+    validateBody(emptySchema)(req, res, next);
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+  });
 });
 
 describe('validateParams middleware', () => {
@@ -90,11 +108,12 @@ describe('validateParams middleware', () => {
   });
 
   it('mutates req.params to parsed data', () => {
-    const req = { params: { id: '550e8400-e29b-41d4-a716-446655440000' } };
+    const req = { params: { id: '550e8400-e29b-41d4-a716-446655440000', extraField: 'should-be-removed' } };
     const res = makeRes();
     const next = makeNext();
     validateParams(schema)(req, res, next);
-    expect(req.params.id).toBe('550e8400-e29b-41d4-a716-446655440000');
+    expect(req.params).toEqual({ id: '550e8400-e29b-41d4-a716-446655440000' });
+    expect(req.params.extraField).toBeUndefined();
   });
 
   it('returns 400 with field details for invalid params', () => {
@@ -133,11 +152,12 @@ describe('validateQuery middleware', () => {
   });
 
   it('mutates req.query to parsed/coerced data', () => {
-    const req = { query: { page: '10' } };
+    const req = { query: { page: '10', extraField: 'should-be-removed' } };
     const res = makeRes();
     const next = makeNext();
     validateQuery(schema)(req, res, next);
-    expect(req.query.page).toBe(10);
+    expect(req.query).toEqual({ page: 10 });
+    expect(req.query.extraField).toBeUndefined();
   });
 
   it('returns 400 for invalid query values', () => {
@@ -146,6 +166,12 @@ describe('validateQuery middleware', () => {
     const next = makeNext();
     validateQuery(schema)(req, res, next);
     expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Validation failed',
+      details: expect.arrayContaining([
+        expect.objectContaining({ field: 'page', message: expect.any(String) }),
+      ]),
+    });
     expect(next).not.toHaveBeenCalled();
   });
 
