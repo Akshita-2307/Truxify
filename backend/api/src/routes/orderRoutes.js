@@ -1297,6 +1297,11 @@ router.get('/:id/route', authenticate, requireRole(['customer', 'driver']), vali
     const destLat = Number(order.drop_lat);
     const destLng = Number(order.drop_lng);
 
+    if (!Number.isFinite(destLat) || !Number.isFinite(destLng)) {
+      logger.error(`[route] Order ${order.id} has non-numeric destination coordinates.`);
+      return res.status(500).json({ error: 'Order has invalid destination coordinates.' });
+    }
+
     // 3. Call OSRM for a road-following route, falling back to a straight
     // line if OSRM is unavailable so the tracking screen never goes blank.
     let feature = await getRouteGeometry({ originLat, originLng, destLat, destLng });

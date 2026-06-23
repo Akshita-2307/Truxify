@@ -46,7 +46,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
   StreamSubscription? _trackingSubscription;
   RealtimeChannel? _supabaseRealtimeChannel;
 
-  // Route polyline state
+  // ── Route polyline state ──────────────────────────────────────────────
   Timer? _routeRefreshTimer;
   bool _isFetchingRoute = false;
   DateTime? _lastRouteFetchAt;
@@ -309,7 +309,6 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
       debugPrint('Failed to fetch initial driver location: $e');
     }
   }
-  
   Future<void> _loadRoute() async {
     if (!mounted) return;
 
@@ -323,13 +322,13 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
 
     _isFetchingRoute = true;
     final isFirstLoad = _lastRouteFetchAt == null;
+    _lastRouteFetchAt = DateTime.now();
     if (isFirstLoad && mounted) {
       setState(() => _isRouteLoading = true);
     }
 
     try {
       final routeData = await _orderService.fetchOrderRoute(widget.orderId);
-      _lastRouteFetchAt = DateTime.now();
 
       final geometry = routeData['geometry'] as Map<String, dynamic>?;
       final coordinates = geometry?['coordinates'] as List<dynamic>?;
@@ -352,9 +351,11 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
 
       if (points.length < 2 || !mounted) return;
 
-      setState(() {
-        _routePoints = points;
-      });
+      if (!_routePointsEqual(_routePoints, points)) {
+        setState(() {
+          _routePoints = points;
+        });
+      }
     } catch (e) {
       debugPrint('Failed to load route: $e');
     } finally {
@@ -363,6 +364,16 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
         setState(() => _isRouteLoading = false);
       }
     }
+  }
+
+  bool _routePointsEqual(List<LatLng> a, List<LatLng> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].latitude != b[i].latitude || a[i].longitude != b[i].longitude) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<void> _fetchDriverAndTruck(dynamic driverId, dynamic truckId) async {

@@ -96,7 +96,7 @@ function buildGeometryUrl({ originLat, originLng, destLat, destLng }) {
 }
 
 function buildGeometryCacheKey({ originLat, originLng, destLat, destLng }) {
-  const r = (n) => Number(n.toFixed(3));
+  const r = (n) => Number(n.toFixed(4));
   return `osrm:geometry:${r(originLat)}:${r(originLng)}:${r(destLat)}:${r(destLng)}`;
 }
 
@@ -165,6 +165,7 @@ export async function getRouteGeometry({ originLat, originLng, destLat, destLng 
     clearTimeout(timeout);
   }
 }
+
 export function buildStraightLineGeometry({ originLat, originLng, destLat, destLng } = {}) {
   if (
     !Number.isFinite(originLat) || !Number.isFinite(originLng) ||
