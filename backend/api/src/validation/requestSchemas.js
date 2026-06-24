@@ -172,9 +172,21 @@ export const updateTicketSchema = z.object({
   }).optional(),
 }).strict();
 
-export const updateProfileSchema = z.object({
-  full_name: z.string().max(100, 'Name must be 100 characters or fewer').optional(),
-  language: z.string().max(10, 'Language code must be 10 characters or fewer').optional(),
-  dark_mode: z.boolean().optional(),
-  is_online: z.boolean().optional(),
+
+// Indian vehicle registration plate: 2 letters, 2 digits, up to 3 letters, up to 4 digits
+// e.g. MH12AB1234 or DL01C1234
+const numberPlateRegex = /^[A-Z]{2}\d{2}[A-Z]{1,3}\d{1,4}$/;
+
+export const registerTruckSchema = z.object({
+  name: z.string()
+    .min(2, 'Truck name must be at least 2 characters')
+    .max(100, 'Truck name must be 100 characters or fewer'),
+  number_plate: z.string()
+    .transform((v) => v.trim().toUpperCase())
+    .pipe(
+      z.string().regex(numberPlateRegex, 'Invalid number plate format (e.g. MH12AB1234)')
+    ),
+  max_capacity_tons: z.number()
+    .positive({ message: 'Capacity must be greater than 0' })
+    .max(100, 'Capacity must be 100 tonnes or fewer'),
 }).strict();
