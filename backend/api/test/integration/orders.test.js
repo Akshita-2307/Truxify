@@ -957,6 +957,7 @@ describe('Delivery OTP Verification and Milestones', () => {
     m.store.driver_details = [];
     m.store.trucks = [];
     m.calls.length = 0;
+    escrowReleaseMock.mockReset();
   });
 
   it('blocks direct transition to Delivered milestone with descriptive message', async () => {
@@ -1186,6 +1187,93 @@ describe('Delivery OTP Verification and Milestones', () => {
       tx_hash: '0xtesthash',
       description: 'Escrow payout for ORD002',
     }));
+  });
+
+  it('returns payout pending and stores a retryable failure when escrow release throws', async () => {
+    escrowReleaseMock.mockRejectedValue(new Error('Polygon RPC unavailable'));
+
+    m.store.orders = [{
+      id: 'order-release-failed',
+      driver_id: 'driver-456',
+      order_display_id: 'ORD-FAILED',
+      status: 'in_transit',
+      total_amount: 125000,
+      escrow_status: 'funded',
+      escrow_release_attempts: 0,
+    }];
+    m.store.delivery_otps = [{
+      id: 'otp-release-failed',
+      order_id: 'order-release-failed',
+      otp_hash: crypto.createHash('sha256').update('123456').digest('hex'),
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      verified: false,
+      created_at: new Date().toISOString(),
+    }];
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/orders/order-release-failed/verify-delivery')
+      .set({
+        'x-user-id': 'driver-456',
+        'x-user-role': 'driver'
+      })
+      .send({ otp: 123456 });
+
+    expect(res.status).toBe(202);
+    expect(res.body).toEqual(expect.objectContaining({
+      escrow_status: 'release_failed',
+      payment_released: false,
+      retryable: true,
+    }));
+
+    const order = m.store.orders.find(o => o.id === 'order-release-failed');
+    expect(order.status).toBe('payment_released');
+    expect(order.escrow_status).toBe('release_failed');
+    expect(order.escrow_release_error).toBe('Polygon RPC unavailable');
+    expect(order.escrow_release_attempts).toBe(1);
+    expect(order.escrow_release_last_attempt_at).toBeTruthy();
+  });
+
+  it('does not report payment released when escrow release returns no transaction hash', async () => {
+    escrowReleaseMock.mockResolvedValue({
+      txHash: null,
+      bookingId: 'booking-missing-hash',
+    });
+
+    m.store.orders = [{
+      id: 'order-no-release-hash',
+      driver_id: 'driver-456',
+      order_display_id: 'ORD-NO-HASH',
+      status: 'in_transit',
+      total_amount: 125000,
+      escrow_status: 'funded',
+      escrow_release_attempts: 2,
+    }];
+    m.store.delivery_otps = [{
+      id: 'otp-no-release-hash',
+      order_id: 'order-no-release-hash',
+      otp_hash: crypto.createHash('sha256').update('123456').digest('hex'),
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      verified: false,
+      created_at: new Date().toISOString(),
+    }];
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/orders/order-no-release-hash/verify-delivery')
+      .set({
+        'x-user-id': 'driver-456',
+        'x-user-role': 'driver'
+      })
+      .send({ otp: 123456 });
+
+    expect(res.status).toBe(202);
+    expect(res.body.payment_released).toBe(false);
+    expect(res.body.escrow_status).toBe('release_failed');
+
+    const order = m.store.orders.find(o => o.id === 'order-no-release-hash');
+    expect(order.escrow_release_attempts).toBe(3);
+    expect(order.escrow_release_error).toContain('transaction hash');
   });
 
   it('fails OTP verification if OTP is expired', async () => {

@@ -861,7 +861,10 @@ router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['dri
   }
 
   try {
-    const { data: order, error: orderErr } = await supabase.from('orders').select('id, order_display_id, driver_id, customer_id, escrow_status, status').eq('id', orderId).maybeSingle();
+    const { data: order, error: orderErr } = await supabase.from('orders')
+      .select('id, order_display_id, driver_id, customer_id, escrow_status, escrow_release_attempts, status')
+      .eq('id', orderId)
+      .maybeSingle();
     if (orderErr || !order) return res.status(404).json({ error: 'Order not found.' });
     if (order.driver_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You are not assigned to this order.' });
 
@@ -913,42 +916,94 @@ router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['dri
 
     // Escrow: release funds to driver after successful delivery verification
     if (order.escrow_status === 'funded') {
+      const releaseAttemptedAt = new Date().toISOString();
+      const releaseAttempts = (order.escrow_release_attempts || 0) + 1;
+      const { error: pendingErr } = await supabase.from('orders').update({
+        escrow_status: 'release_pending',
+        escrow_release_error: null,
+        escrow_release_attempts: releaseAttempts,
+        escrow_release_last_attempt_at: releaseAttemptedAt,
+      }).eq('id', orderId);
+
+      if (pendingErr) {
+        logger.error('[escrow] Failed to persist release_pending state:', pendingErr.message);
+        return res.status(202).json({
+          message: 'Delivery verified successfully. Escrow payout is pending reconciliation.',
+          escrow_status: 'release_pending',
+          payment_released: false,
+        });
+      }
+
       try {
         const { txHash } = await escrowRelease(order.order_display_id);
-        if (txHash) {
-          await supabase.from('orders').update({
-            escrow_status: 'released',
+        if (!txHash) {
+          throw new Error('Escrow release did not return a transaction hash');
+        }
+
+        const { error: releaseUpdateErr } = await supabase.from('orders').update({
+          escrow_status: 'released',
+          release_tx_hash: txHash,
+          escrow_release_error: null,
+          escrow_released_at: new Date().toISOString(),
+        }).eq('id', orderId);
+
+        if (releaseUpdateErr) {
+          logger.error('[escrow] Release confirmed but persistence failed:', releaseUpdateErr.message);
+          return res.status(202).json({
+            message: 'Delivery verified successfully. Escrow release was submitted and requires reconciliation.',
+            escrow_status: 'release_pending',
+            payment_released: false,
             release_tx_hash: txHash,
-            escrow_released_at: new Date().toISOString(),
-          }).eq('id', orderId);
+          });
+        }
 
-          if (order.driver_id) {
-            const { error: walletErr } = await supabase
-              .from('wallet_transactions')
-              .update({
-                tx_hash: txHash,
-                description: `Escrow payout for ${order.order_display_id}`,
-              })
-              .eq('driver_id', order.driver_id)
-              .eq('order_display_id', order.order_display_id)
-              .eq('txn_type', 'credit');
+        if (order.driver_id) {
+          const { error: walletErr } = await supabase
+            .from('wallet_transactions')
+            .update({
+              tx_hash: txHash,
+              description: `Escrow payout for ${order.order_display_id}`,
+            })
+            .eq('driver_id', order.driver_id)
+            .eq('order_display_id', order.order_display_id)
+            .eq('txn_type', 'credit');
 
-            if (walletErr) {
-              logger.error(
-                '[wallet] Failed to persist escrow payout:',
-                walletErr.message
-              );
-            }
+          if (walletErr) {
+            logger.error(
+              '[wallet] Failed to persist escrow payout:',
+              walletErr.message
+            );
           }
         }
       } catch (releaseErr) {
         logger.error('[escrow] Release failed for order', orderId, ':', releaseErr.message);
+        const releaseError = String(releaseErr.message || 'Unknown escrow release error').slice(0, 1000);
+        const { error: failureUpdateErr } = await supabase.from('orders').update({
+          escrow_status: 'release_failed',
+          escrow_release_error: releaseError,
+          escrow_release_last_attempt_at: releaseAttemptedAt,
+        }).eq('id', orderId);
+
+        if (failureUpdateErr) {
+          logger.error('[escrow] Failed to persist release failure:', failureUpdateErr.message);
+        }
+
+        return res.status(202).json({
+          message: 'Delivery verified successfully. Escrow payout is pending retry.',
+          escrow_status: 'release_failed',
+          payment_released: false,
+          retryable: true,
+        });
       }
     } else {
       logger.info(`[escrow] Escrow not funded (status: ${order.escrow_status}) — skipping on-chain release.`);
     }
 
-    res.json({ message: 'Delivery verified successfully! Payment released to driver.' });
+    res.json({
+      message: 'Delivery verified successfully! Payment released to driver.',
+      escrow_status: order.escrow_status === 'funded' ? 'released' : order.escrow_status,
+      payment_released: true,
+    });
   } catch (err) {
     res.status(500).json({ error: 'Internal Server Error' });
   }
