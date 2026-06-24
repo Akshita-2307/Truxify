@@ -106,6 +106,14 @@ router.put('/wallet', authenticate, userLimiter, async (req, res) => {
       return res.status(500).json({ error: 'Failed to update wallet address.', details: updateErr.message });
     }
 
+    const { error: driverDetailsErr } = await supabase
+      .from('driver_details')
+      .upsert({ user_id: userId, polygon_wallet_address: normalized }, { onConflict: 'user_id' });
+
+    if (driverDetailsErr) {
+      return res.status(500).json({ error: 'Failed to sync wallet to driver details.', details: driverDetailsErr.message });
+    }
+
     if (req.user && req.user.uid) {
       void invalidateCachedProfile(req.user.uid);
     }
