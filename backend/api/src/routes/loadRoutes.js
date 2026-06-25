@@ -83,20 +83,36 @@ router.get('/', authenticate, userLimiter, requireRole(['driver']), async (req, 
       query = query.eq('goods_type', req.query.goods_type);
     }
     if (req.query.min_price) {
-      const min = parseFloat(req.query.min_price);
-      if (isNaN(min) || min < 0) return res.status(400).json({ error: 'min_price must be a non-negative number' });
+      const minPriceStr = String(req.query.min_price);
+      const min = parseFloat(minPriceStr);
+      if (isNaN(min) || min < 0 || minPriceStr !== String(min)) {
+        return res.status(400).json({ error: 'min_price must be a non-negative number without trailing characters' });
+      }
       // Map min_price (in Rupees) to freight_value (in paisa)
       query = query.gte('freight_value', Math.round(min * 100));
     }
     if (req.query.max_price) {
-      const max = parseFloat(req.query.max_price);
-      if (isNaN(max) || max < 0) return res.status(400).json({ error: 'max_price must be a non-negative number' });
+      const maxPriceStr = String(req.query.max_price);
+      const max = parseFloat(maxPriceStr);
+      if (isNaN(max) || max < 0 || maxPriceStr !== String(max)) {
+        return res.status(400).json({ error: 'max_price must be a non-negative number without trailing characters' });
+      }
       // Map max_price (in Rupees) to freight_value (in paisa)
       query = query.lte('freight_value', Math.round(max * 100));
     }
+    if (req.query.min_price && req.query.max_price) {
+      const min = parseFloat(String(req.query.min_price));
+      const max = parseFloat(String(req.query.max_price));
+      if (!isNaN(min) && !isNaN(max) && min > max) {
+        return res.status(400).json({ error: 'min_price cannot be greater than max_price' });
+      }
+    }
     if (req.query.distance) {
-      const maxDistance = parseFloat(req.query.distance);
-      if (isNaN(maxDistance) || maxDistance < 0) return res.status(400).json({ error: 'distance must be a non-negative number' });
+      const distStr = String(req.query.distance);
+      const maxDistance = parseFloat(distStr);
+      if (isNaN(maxDistance) || maxDistance < 0 || distStr !== String(maxDistance)) {
+        return res.status(400).json({ error: 'distance must be a non-negative number without trailing characters' });
+      }
       query = query.lte('extra_distance_km', maxDistance);
     }
 
