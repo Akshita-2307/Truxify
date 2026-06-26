@@ -42,6 +42,7 @@ let telemetryFlushTimeout = null;
 let wsServer = null;
 let wsHeartbeatInterval = null;
 let telemetryMonitorInterval = null;
+let driverOnlineExpiryInterval = null;
 
 const WS_UPGRADE_RATE_LIMIT = 5;
 const WS_UPGRADE_RATE_WINDOW_SECONDS = 60;
@@ -269,7 +270,33 @@ export function initWebSocketServer(server) {
     initTelemetryScheduler();
   }
 
+  initDriverOnlineExpiry();
+
   logger.info('🚀 WebSocket tracking router initialized.');
+}
+
+const DRIVER_ONLINE_TIMEOUT_MS = parseInt(process.env.DRIVER_ONLINE_TIMEOUT_MS, 10) || 5 * 60 * 1000; // 5 minutes
+
+async function expireStaleDriverOnlineStatus() {
+  if (!supabase) return;
+  try {
+    const cutoff = new Date(Date.now() - DRIVER_ONLINE_TIMEOUT_MS).toISOString();
+    const { error } = await supabase
+      .from('driver_details')
+      .update({ is_online: false })
+      .eq('is_online', true)
+      .lt('last_seen_at', cutoff);
+    if (error) {
+      logger.error('[tracker] Failed to expire stale driver online status:', error.message);
+    }
+  } catch (err) {
+    logger.error('[tracker] Driver online expiry error:', err.message);
+  }
+}
+
+function initDriverOnlineExpiry() {
+  const intervalMs = Math.max(DRIVER_ONLINE_TIMEOUT_MS, 60000);
+  driverOnlineExpiryInterval = setInterval(expireStaleDriverOnlineStatus, intervalMs);
 }
 
 function isMessageRateLimited(ws) {
@@ -483,6 +510,18 @@ export async function handleLocationPing(ws, data) {
     }
   }
 
+  // Update last_seen_at for driver online status auto-expiry
+  if (supabase) {
+    try {
+      await supabase
+        .from('driver_details')
+        .update({ last_seen_at: new Date(serverNow).toISOString() })
+        .eq('user_id', driver_id);
+    } catch (err) {
+      logger.error('[tracker] Failed to update last_seen_at:', err.message);
+    }
+  }
+
   const broadcastPayload = JSON.stringify({
     event: 'location_update',
     data: {
@@ -681,6 +720,11 @@ export async function closeWebSocketServer() {
   if (telemetryMonitorInterval) {
     clearInterval(telemetryMonitorInterval);
     telemetryMonitorInterval = null;
+  }
+
+  if (driverOnlineExpiryInterval) {
+    clearInterval(driverOnlineExpiryInterval);
+    driverOnlineExpiryInterval = null;
   }
 
   if (wsHeartbeatInterval) {
