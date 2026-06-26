@@ -908,6 +908,7 @@ router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['dri
     await verifyDeliveryOtp(orderId);
     await clearOtpState(orderId);
     // Escrow: release funds to driver after successful delivery verification
+    let escrowReleased = false;
     if (order.escrow_status === 'funded') {
       try {
         const { txHash } = await escrowRelease(order.order_display_id);
@@ -936,6 +937,7 @@ router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['dri
               );
             }
           }
+          escrowReleased = true;
         }
       } catch (releaseErr) {
         logger.error('[escrow] Release failed for order', orderId, ':', releaseErr.message);
@@ -944,7 +946,11 @@ router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['dri
       logger.info(`[escrow] Escrow not funded (status: ${order.escrow_status}) — skipping on-chain release.`);
     }
 
-    res.json({ message: 'Delivery verified successfully! Payment released to driver.' });
+    if (order.escrow_status !== 'funded' || escrowReleased) {
+      res.json({ message: 'Delivery verified successfully! Payment released to driver.' });
+    } else {
+      res.status(500).json({ error: 'Delivery verified but on-chain escrow release failed. Contact support.' });
+    }
   } catch (err) {
     res.status(500).json({ error: 'Internal Server Error' });
   }
