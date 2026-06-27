@@ -161,6 +161,31 @@ describe('Database Schema Constraints and RPC Upsert validation in supabase_setu
     }
   });
 
+  it('verifies that order completion consumes the delivery OTP in the same RPC transaction', async () => {
+    const setupSqlPath = path.resolve(__dirname, '../../../../docs/supabase_setup.sql');
+    const migrationSqlPath = path.resolve(__dirname, '../../../../supabase/migrations/20260624223000_make_delivery_otp_completion_atomic.sql');
+
+    const setupSql = await fs.readFile(setupSqlPath, 'utf8');
+    const migrationSql = await fs.readFile(migrationSqlPath, 'utf8');
+
+    for (const [name, sqlContent] of [['supabase_setup.sql', setupSql], ['atomic OTP migration', migrationSql]]) {
+      expect(
+        /complete_trip_tx\s*\(\s*p_order_id\s+uuid\s*,\s*p_otp_id\s+uuid\s*\)/i.test(sqlContent),
+        `OTP-aware complete_trip_tx signature not found in ${name}`
+      ).toBe(true);
+
+      expect(
+        /update\s+delivery_otps\s+set\s+verified\s*=\s*true[\s\S]*where\s+id\s*=\s*p_otp_id[\s\S]*and\s+order_id\s*=\s*p_order_id/i.test(sqlContent),
+        `Atomic delivery OTP update not found in ${name}`
+      ).toBe(true);
+
+      expect(
+        /get\s+diagnostics\s+v_otp_updated\s*=\s*row_count/i.test(sqlContent),
+        `Delivery OTP row-count guard not found in ${name}`
+      ).toBe(true);
+    }
+  });
+
   it('contains the processed_batches table required for offline sync idempotency in both setup and migration SQL', async () => {
     const setupSqlPath = path.resolve(__dirname, '../../../../docs/supabase_setup.sql');
     const migrationSqlPath = path.resolve(__dirname, '../../../../docs/migration_add_processed_batches.sql');

@@ -23,15 +23,31 @@ const routeEstimateMock = vi.fn();
 const { createSupabaseMock } = await vi.importActual('../helpers/supabaseMock.js');
 
 const m = createSupabaseMock();
+let completeTripRpcError = null;
 
 const originalRpc = m.supabase.rpc;
 m.supabase.rpc = vi.fn().mockImplementation(async (fnName, args) => {
   if (fnName === 'complete_trip_tx') {
     m.calls.push({ rpc: fnName, args });
+    if (completeTripRpcError) {
+      const error = completeTripRpcError;
+      completeTripRpcError = null;
+      return { data: null, error };
+    }
     const orderId = args.p_order_id;
+    const otp = m.store.delivery_otps.find(record =>
+      record.id === args.p_otp_id &&
+      record.order_id === orderId &&
+      record.verified === false &&
+      new Date(record.expires_at) >= new Date()
+    );
+    if (!otp) {
+      return { data: null, error: { message: 'Delivery OTP is invalid, expired, or already verified' } };
+    }
     const order = m.store.orders.find(o => o.id === orderId);
     if (order) {
-      order.otp_verified = true;
+      otp.verified = true;
+      otp.verified_at = new Date().toISOString();
       order.status = 'payment_released';
       order.updated_at = new Date().toISOString();
       const timeline = m.store.order_timeline.find(t => t.order_display_id === order.order_display_id && t.milestone === 'Delivered');
@@ -972,6 +988,7 @@ describe('Delivery OTP Verification and Milestones', () => {
     m.store.driver_details = [];
     m.store.trucks = [];
     m.calls.length = 0;
+    completeTripRpcError = null;
     escrowReleaseMock.mockReset();
   });
 
@@ -1155,7 +1172,52 @@ describe('Delivery OTP Verification and Milestones', () => {
 
     const rpcCall = m.calls.find(c => c.rpc === 'complete_trip_tx');
     expect(rpcCall).toBeTruthy();
-    expect(rpcCall.args).toEqual({ p_order_id: 'order-1' });
+    expect(rpcCall.args).toEqual({
+      p_order_id: 'order-1',
+      p_otp_id: 'otp-1',
+    });
+  });
+
+  it('keeps the OTP unverified when complete_trip_tx fails so verification can be retried', async () => {
+    m.store.orders = [{
+      id: 'order-retry',
+      driver_id: 'driver-123',
+      order_display_id: 'ORD-RETRY',
+      status: 'in_transit'
+    }];
+    m.store.delivery_otps = [{
+      id: 'otp-retry',
+      order_id: 'order-retry',
+      otp_hash: crypto.createHash('sha256').update('123456').digest('hex'),
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      verified: false,
+      created_at: new Date().toISOString()
+    }];
+
+    completeTripRpcError = { message: 'temporary database failure' };
+
+    const app = buildApp();
+    const firstResponse = await request(app)
+      .post('/api/orders/order-retry/verify-delivery')
+      .set({
+        'x-user-id': 'driver-123',
+        'x-user-role': 'driver'
+      })
+      .send({ otp: '123456' });
+
+    expect(firstResponse.status).toBe(500);
+    expect(m.store.delivery_otps[0].verified).toBe(false);
+
+    const retryResponse = await request(app)
+      .post('/api/orders/order-retry/verify-delivery')
+      .set({
+        'x-user-id': 'driver-123',
+        'x-user-role': 'driver'
+      })
+      .send({ otp: '123456' });
+
+    expect(retryResponse.status).toBe(200);
+    expect(m.store.delivery_otps[0].verified).toBe(true);
   });
 
   it('persists the escrow payout hash to wallet_transactions after delivery verification', async () => {
@@ -1428,7 +1490,7 @@ describe('Delivery OTP Verification and Milestones', () => {
         .send({ otp: '000000' });
     }
 
-    // Succeed — this calls verifyDeliveryOtp which marks the OTP as verified
+    // Succeed — complete_trip_tx atomically marks the OTP as verified.
     const resSuccess = await request(app)
       .post(`/api/orders/${orderId}/verify-delivery`)
       .set({
