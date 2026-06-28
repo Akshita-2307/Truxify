@@ -13,7 +13,6 @@ import 'package:latlong2/latlong.dart' as ll;
 import 'package:truxify_driver/widgets/slide_to_confirm_button.dart';
 
 import '../core/app_routes.dart';
-import '../data/mock_data.dart';
 import '../models/app_models.dart';
 import '../models/earnings_daily_model.dart';
 import '../services/driver_earnings_service.dart';
@@ -78,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final DriverEarningsService _earningsService;
   EarningsDailyModel? _todayEarnings;
   double? _driverRating;
+  List<TripRecord> _tripHistory = [];
   bool _isLoadingMetrics = true;
   String? _metricsError;
 
@@ -171,14 +171,30 @@ class _HomeScreenState extends State<HomeScreen> {
       final results = await Future.wait([
         _earningsService.fetchTodayEarningsSummary(),
         _earningsService.fetchDriverStats(),
+        _tripService.fetchTripHistory(limit: 50),
       ]);
 
       if (!mounted) return;
+
+      final historyData = results[2] as Map<String, dynamic>;
+      final historyList = (historyData['trips'] as List?)
+          ?.map((t) => TripRecord(
+                route: (t['route'] as String?) ?? (t['route_label'] as String?) ?? '',
+                date: (t['date'] as String?) ?? (t['trip_date'] as String?) ?? '',
+                earnings: (t['earnings'] as String?) ?? (t['payout'] as String?) ?? '',
+                statusLabel: (t['status_label'] as String?) ?? (t['status'] as String?) ?? '',
+                tripId: (t['trip_display_id'] as String?) ?? (t['trip_id'] as String?) ?? '',
+                hash: (t['hash'] as String?) ?? (t['blockchain_hash'] as String?) ?? '',
+                verifiedBadge: (t['verified_badge'] as String?) ?? '',
+                completed: (t['completed'] as bool?) ?? (t['is_completed'] as bool?) ?? false,
+              ))
+          .toList() ?? [];
 
       setState(() {
         _todayEarnings = results[0] as EarningsDailyModel?;
         final stats = results[1] as Map<String, dynamic>;
         _driverRating = (stats['rating'] as num?)?.toDouble();
+        _tripHistory = historyList;
         _isLoadingMetrics = false;
       });
     } catch (e) {
@@ -828,7 +844,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _formatTimeSinceLastTrip() {
     DateTime? latest;
-    for (final record in tripHistory) {
+    for (final record in _tripHistory) {
       if (!record.completed) continue;
       final parsed = _parseTripHistoryDate(record.date);
       if (parsed == null) continue;
