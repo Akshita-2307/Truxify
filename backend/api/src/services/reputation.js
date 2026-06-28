@@ -90,7 +90,9 @@ export async function awardReputationPoints(driverWalletAddress, stars) {
     await tx.wait(1); // wait for 1 confirmation
     logger.info(`[reputation] increaseReputation confirmed for driver ${driverWalletAddress} (+${stars} pts).`);
   } catch (err) {
-    logger.error(`[reputation] Blockchain error in awardReputationPoints for ${driverWalletAddress}: ${err.message}`);
+    // Blockchain errors must never propagate as unhandled rejections — this function
+    // is fire-and-forget on the critical path. Log and drop.
+    logger.error(`[reputation] increaseReputation failed for driver ${driverWalletAddress}: ${err.message}`);
   }
 }
 
@@ -122,4 +124,3 @@ export async function getDriverReputation(walletAddress) {
     return null;
   }
 }
-
