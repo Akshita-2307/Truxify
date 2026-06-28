@@ -75,6 +75,33 @@ class TripService {
     return List<Map<String, dynamic>>.from(body as List);
   }
 
+  Future<Map<String, dynamic>> fetchTripHistory({
+    String? cursor,
+    int limit = 20,
+    String? status,
+  }) async {
+    var uriString = '$_apiBaseUrl/api/trips/history?limit=$limit';
+    if (status != null) {
+      uriString += '&status=${Uri.encodeQueryComponent(status)}';
+    }
+    if (cursor != null) {
+      uriString += '&cursor=${Uri.encodeQueryComponent(cursor)}';
+    }
+    final uri = Uri.parse(uriString);
+    final response = await _httpClient.get(uri, headers: await _authHeaders());
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError('Failed to fetch trip history');
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return {
+      'trips': List<Map<String, dynamic>>.from(body['trips'] as List? ?? []),
+      'nextCursor': body['nextCursor'] as String?,
+      'hasMore': body['hasMore'] as bool? ?? false,
+    };
+  }
+
   Future<List<Map<String, dynamic>>> fetchTripItems(
     String tripDisplayId,
   ) async {
