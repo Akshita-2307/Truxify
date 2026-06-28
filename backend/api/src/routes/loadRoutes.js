@@ -4,6 +4,7 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 import { userLimiter } from '../middleware/rateLimiter.js';
 import logger from '../middleware/logger.js';
 import { loadFilterQuerySchema } from '../validation/loadSchemas.js';
+import { escapeLike } from '../lib/escapeLike.js';
 
 const router = express.Router();
 
@@ -87,10 +88,16 @@ router.get('/', authenticate, userLimiter, requireRole(['driver']), async (req, 
 
     // Filters
     if (req.query.pickup_location) {
-      query = query.ilike('pickup_address', `%${req.query.pickup_location}%`);
+      if (req.query.pickup_location.length > 200) {
+        return res.status(400).json({ error: 'pickup_location too long (max 200 chars)' });
+      }
+      query = query.ilike('pickup_address', `%${escapeLike(req.query.pickup_location)}%`);
     }
     if (req.query.destination) {
-      query = query.ilike('drop_address', `%${req.query.destination}%`);
+      if (req.query.destination.length > 200) {
+        return res.status(400).json({ error: 'destination too long (max 200 chars)' });
+      }
+      query = query.ilike('drop_address', `%${escapeLike(req.query.destination)}%`);
     }
     if (req.query.goods_type) {
       query = query.eq('goods_type', req.query.goods_type);
