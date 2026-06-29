@@ -9,6 +9,6 @@
     "@nomicfoundation/hardhat-ethers": "^4.0.13",
     "@nomicfoundation/hardhat-verify": "^3.0.20",
     "ethers": "^6.12.1",
-    "hardhat": "^3.9.0"
+    "hardhat": "^2.22.0"
   }
 }
