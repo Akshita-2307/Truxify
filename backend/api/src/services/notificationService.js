@@ -67,7 +67,7 @@ export async function sendFcmNotification(userId, notification, data = {}) {
   }
 
   const stringData = Object.fromEntries(
-    Object.entries(data).map(([k, v]) => [k, String(v)])
+    Object.entries(data).map(([k, v]) => [k, typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v)])
   );
 
   let lastError = null;
@@ -211,7 +211,7 @@ export async function sendDeliveryOtpNotification(customerId, orderDisplayId, ot
     customerId,
     { title: 'Delivery Verification OTP', body: `A delivery OTP has been generated for order ${orderDisplayId}. Open the app to view the code.` },
     { orderDisplayId, notifType: 'delivery_otp' }
-  ); } catch (_) { /* logged internally by sendFcmNotification */ }
+  ); } catch (fcmErr) { logger.error(`[NotificationService] FCM delivery OTP send failed: ${fcmErr.message}`); }
 
   if (process.env.TWILIO_AUTH_TOKEN) {
     logger.info(`[NotificationService] [SMS] SMS stub: Sending OTP for order ${orderDisplayId} (masked)`);
@@ -238,6 +238,6 @@ export async function sendPushNotification(userId, title, body, notifType, metad
   }
 
   let fcmResult;
-  try { fcmResult = await sendFcmNotification(userId, { title, body }, { notifType, ...metadata }); } catch (_) { /* logged internally */ }
+  try { fcmResult = await sendFcmNotification(userId, { title, body }, { notifType, ...metadata }); } catch (fcmErr) { logger.error(`[NotificationService] Push send failed: ${fcmErr.message}`); }
   return { success: fcmResult?.success, fcm: fcmResult };
 }
