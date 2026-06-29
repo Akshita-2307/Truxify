@@ -65,6 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showStatusCard = true;
   final TripService _tripService = TripService();
   String? _activeTripId;
+  String _activeTruckLabel = '';
+  String _activeTripDistance = '';
+  String _activeTripDuration = '';
+  String _activeTripPayout = '';
   bool _isLoadingLocation = true;
   String? _locationError;
 
@@ -423,9 +427,23 @@ class _HomeScreenState extends State<HomeScreen> {
         final tripId = activeTrip['trip_display_id'] as String;
         final stops = await _tripService.fetchTripStops(tripId);
         if (!mounted) return;
-        
+
+        final truckPlate = (activeTrip['truck_plate'] as String?) ?? '';
+        final truckModel = (activeTrip['truck_model'] as String?) ?? '';
+        final truckLabel = truckPlate.isNotEmpty && truckModel.isNotEmpty
+            ? '$truckPlate · $truckModel'
+            : (activeTrip['truck_label'] as String?) ?? 'Truck assigned';
+
         setState(() {
           _activeTripId = tripId;
+          _activeTruckLabel = truckLabel;
+          _activeTripDistance = (activeTrip['distance'] as String?) ??
+              (activeTrip['trip_distance'] as String?) ?? '';
+          _activeTripDuration = (activeTrip['duration'] as String?) ??
+              (activeTrip['trip_duration'] as String?) ?? '';
+          _activeTripPayout = (activeTrip['estimated_payout'] as String?) ??
+              (activeTrip['price'] as String?) ??
+              (activeTrip['payout'] as String?) ?? '';
           _isTripStarted = stops.any((s) => s['is_completed'] == true || s['is_current'] == true);
         });
         
@@ -1494,7 +1512,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'GJ-05-BY-9898 · Tata Signa',
+                  _activeTruckLabel,
                   style: GoogleFonts.dmSans(
                     fontSize: 11,
                     color: TruxifyColors.adaptiveSecondaryText(context),
@@ -1521,9 +1539,9 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildTripSpec('Distance', '420 km'),
-              _buildTripSpec('Est. Duration', '8.5 hrs'),
-              _buildTripSpec('Est. Payout', '₹8,200'),
+              _buildTripSpec('Distance', _activeTripDistance.isNotEmpty ? _activeTripDistance : '--'),
+              _buildTripSpec('Est. Duration', _activeTripDuration.isNotEmpty ? _activeTripDuration : '--'),
+              _buildTripSpec('Est. Payout', _activeTripPayout.isNotEmpty ? _activeTripPayout : '--'),
             ],
           ),
           const SizedBox(height: 16),
