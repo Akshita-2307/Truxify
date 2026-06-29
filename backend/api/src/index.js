@@ -12,6 +12,7 @@ import deviceRoutes from './routes/deviceRoutes.js';
 
 import { closeDbConnections, waitForMongoDb, validateConfig } from './config/db.js';
 import { closeWebSocketServer, initWebSocketServer } from './sockets/tracker.js';
+import { startEscrowReleaseReconciliation } from './services/escrowReleaseReconciliation.js';
 
 // Load REST routes
 import orderRoutes from './routes/orderRoutes.js';
@@ -226,6 +227,7 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   logger.info(`Truxify API listening on port ${PORT}`);
   startEscrowRefundReconciliation();
+  startEscrowReleaseReconciliation();
 });
 
 // ============================================================================
