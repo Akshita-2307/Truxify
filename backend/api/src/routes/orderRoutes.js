@@ -1177,9 +1177,12 @@ router.put('/:id/change-drop', authenticate, userLimiter, requireRole(['customer
     if (orderErr) return res.status(500).json({ error: 'Failed to fetch order.', details: orderErr.message });
     if (!order) return res.status(404).json({ error: 'Order not found.' });
     if (order.customer_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You do not own this order.' });
-    if (order.escrow_status === 'funded') {
+    if (order.escrow_status === 'funded' || order.status !== 'pending') {
+      const reason = order.escrow_status === 'funded'
+        ? 'after escrow has been funded'
+        : `after order status is '${order.status}'`;
       return res.status(409).json({
-        error: 'Drop location cannot be changed after escrow has been funded.',
+        error: `Drop location cannot be changed ${reason}.`,
         recovery: 'Cancel this order to receive a refund, then rebook with the correct destination.',
       });
     }
