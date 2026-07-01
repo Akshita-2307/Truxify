@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
+import logger from "../middleware/logger.js";
 import { GpsLog } from "../models/GpsLog.js";
 
 /**
@@ -103,7 +104,7 @@ export function attachLocationServer(httpServer) {
           });
 
       } catch (error) {
-        console.error(`[WS] GPS persist error for driver ${driverId}:`, error);
+        logger.error(`[WS] GPS persist error for driver ${driverId}:`, error);
         socket.emit("error", { message: "Failed to process location update" });
       }
     });
@@ -113,7 +114,7 @@ export function attachLocationServer(httpServer) {
     });
 
     socket.on("error", (error) => {
-      console.error(`[WS] Driver socket error (${driverId}):`, error);
+      logger.error(`[WS] Driver socket error (${driverId}):`, error);
     });
   });
 
@@ -175,7 +176,7 @@ export function attachLocationServer(httpServer) {
         socket.emit("subscribed", { bookingId });
 
       } catch (error) {
-        console.error(`[WS] Subscribe error for customer ${customerId}:`, error);
+        logger.error(`[WS] Subscribe error for customer ${customerId}:`, error);
         socket.emit("error", { message: "Failed to subscribe to booking" });
       }
     });

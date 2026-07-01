@@ -1,7 +1,7 @@
 import { supabase, redisClient } from '../config/db.js';
 import { escrowRelease } from './escrow.js';
 import os from 'os';
-
+import logger from '../middleware/logger.js';
 const DEFAULT_INTERVAL_MS = 60_000;
 const LOCK_KEY = 'escrow:release:reconciliation:lock';
 const LOCK_TTL_SECONDS = 120;
@@ -28,7 +28,7 @@ export async function reconcilePendingEscrowReleases() {
         } catch (_) {}
       }, LEASE_EXTENSION_INTERVAL_MS);
     } catch (err) {
-      console.error('[escrow-release-reconciliation] Failed to acquire Redis lock:', err.message);
+      logger.error('[escrow-release-reconciliation] Failed to acquire Redis lock:', err.message);
     }
   }
 
@@ -47,7 +47,7 @@ export async function reconcilePendingEscrowReleases() {
       .limit(50);
 
     if (error) {
-      console.error('[escrow-release-reconciliation] Failed to load failed releases:', error.message);
+      logger.error('[escrow-release-reconciliation] Failed to load failed releases:', error.message);
       return;
     }
 
@@ -105,7 +105,7 @@ export async function reconcilePendingEscrowReleases() {
           .eq('escrow_status', 'release_failed');
 
         if (updateError) {
-          console.error(
+          logger.error(
             `[escrow-release-reconciliation] Failed to finalize release for ${order.order_display_id}:`,
             updateError.message
           );
@@ -127,19 +127,19 @@ export async function reconcilePendingEscrowReleases() {
           .eq('id', order.id);
 
         if (attemptError) {
-          console.error(
+          logger.error(
             `[escrow-release-reconciliation] Failed to update attempt count for ${order.order_display_id}:`,
             attemptError.message
           );
         }
 
         if (releaseAttempts >= MAX_RETRIES) {
-          console.error(
+          logger.error(
             `[escrow-release-reconciliation] Order ${order.order_display_id} has failed ${releaseAttempts} times. Escalating to manual review.`
           );
         } else {
           const backoffMs = Math.min(1000 * Math.pow(2, releaseAttempts), 60000);
-          console.warn(
+          logger.warn(
             `[escrow-release-reconciliation] Release retry ${releaseAttempts}/${MAX_RETRIES} for ${order.order_display_id} failed. Will retry in ${backoffMs}ms.`
           );
         }
