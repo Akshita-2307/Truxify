@@ -1,4 +1,5 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'dart:developer' as developer;
+import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -12,9 +13,9 @@ void setupTestEnvironment() {
       url: 'https://mock-project.supabase.co',
       anonKey: 'mock-anon-key',
     );
-    print('✅ Supabase initialized for tests');
+    developer.log('✅ Supabase initialized for tests');
   } catch (e) {
-    print('⚠️ Supabase already initialized: $e');
+    developer.log('⚠️ Supabase already initialized: $e');
   }
   
   // Initialize Firebase for tests
@@ -27,8 +28,8 @@ void setupTestEnvironment() {
         projectId: 'mock-project-id',
       ),
     );
-    print('✅ Firebase initialized for tests');
+    developer.log('✅ Firebase initialized for tests');
   } catch (e) {
-    print('⚠️ Firebase already initialized: $e');
+    developer.log('⚠️ Firebase already initialized: $e');
   }
 }
