@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import logger from "../middleware/logger.js";
 import { GpsLog } from "../models/GpsLog.js";
+import { supabase } from "../config/db.js";
 
 /**
  * Attaches the Truxify Live Location WebSocket server to an existing
@@ -270,6 +271,7 @@ async function verifyCustomerToken(socket, next) {
  */
 async function verifyBookingOwnership(customerId, bookingId) {
   try {
+    // Use Supabase client from existing db module
     // Import Supabase client from existing db module
     const { supabase } = await import("../config/db.js");
 
