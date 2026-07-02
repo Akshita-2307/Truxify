@@ -44,7 +44,7 @@ class TripService {
     };
   }
 
-  Future<void> _verifyTripOwnership(String tripDisplayId) async {
+  Future<void> verifyTripOwnership(String tripDisplayId) async {
     final tripCheck = await _client
         .from('trips')
         .select('id')
@@ -150,6 +150,7 @@ class TripService {
     String stopId,
     String tripDisplayId,
   ) async {
+    await verifyTripOwnership(tripDisplayId);
     final uri = Uri.parse('$_apiBaseUrl/api/trips/$tripDisplayId/stops/$stopId/complete');
     final response = await _httpClient.put(uri, headers: await _authHeaders());
 
@@ -174,6 +175,7 @@ class TripService {
   }
 
   Future<void> startTrip(String tripDisplayId) async {
+    await verifyTripOwnership(tripDisplayId);
     final uri = Uri.parse('$_apiBaseUrl/api/trips/$tripDisplayId/start');
     final response = await _httpClient.put(uri, headers: await _authHeaders());
 
