@@ -272,6 +272,8 @@ async function verifyCustomerToken(socket, next) {
 async function verifyBookingOwnership(customerId, bookingId) {
   try {
     // Use Supabase client from existing db module
+    // Import Supabase client from existing db module
+    const { supabase } = await import("../config/db.js");
 
     const { data, error } = await supabase
       .from("bookings")
