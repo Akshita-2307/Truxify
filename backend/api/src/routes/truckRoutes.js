@@ -11,6 +11,13 @@ import logger from '../middleware/logger.js';
 
 const router = express.Router();
 
+// GET /api/trucks/types
+router.get('/types', authenticate, userLimiter, (req, res) => {
+  return res.json({
+    types: ['mini-truck', 'flatbed', 'box-truck', 'refrigerated', 'container']
+  });
+});
+
 // ============================================================================
 // REGISTER A TRUCK (DRIVER ONLY)
 // ============================================================================
