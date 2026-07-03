@@ -1,8 +1,8 @@
 import express from 'express';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { ethers } from 'ethers';
-import { bidLimiter, userLimiter } from '../middleware/rateLimiter.js';
+import { bidLimiter, userLimiter, safeIpKeyGenerator } from '../middleware/rateLimiter.js';
 import { supabase, redisClient, mongoDb } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { validateBody, validateParams } from '../middleware/validate.js';
@@ -156,7 +156,7 @@ const telemetryLimiter = rateLimit({
   max: process.env.NODE_ENV === 'test' ? 1000 : 30, // 30 requests per minute should be enough for telemetry
   keyGenerator: (req) => {
     if (!req.user || !req.user.id) {
-      return req.ip ? ipKeyGenerator(req.ip) : 'unknown-ip';
+      return req.ip ? safeIpKeyGenerator(req) : 'unknown-ip';
     }
     return req.user.id;
   },
