@@ -168,7 +168,7 @@ void main() {
       final service = TripService(client: client, httpClient: mockHttp);
 
       expect(
-        () => service.fetchTripHistory(limit: 0),
+        () => service.fetchTripHistory(cursor: 'abc'),
         throwsA(isA<ArgumentError>()),
       );
       expect(requests, isEmpty);
