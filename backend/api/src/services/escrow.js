@@ -254,3 +254,7 @@ export function bookingIdFromUuid(orderId) {
 export async function releaseEscrowFunds(orderDisplayId) {
   return escrowRelease(orderDisplayId);
 }
+
+export async function escrowRefund(orderDisplayId) {
+  return submitEscrowRefund(orderDisplayId);
+}
