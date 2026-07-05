@@ -57,8 +57,8 @@ async function handleResponse(response) {
 
     try {
         return JSON.parse(text);
-    } catch {
-        throw new Error('[ML] Invalid JSON response from ML engine');
+    } catch (err) {
+        throw new Error(`[ML] Invalid JSON response from ML engine: ${err.message}`);
     }
 }
 
@@ -104,8 +104,7 @@ export async function predictPrice({
     routeOrigin = '',
     routeDestination = '',
 } = {}) {
-  guardMlApiKey();
-    const url = `${getBaseUrl()}/predict`;
+    const url = `${getBaseUrl()}/predict/price`;
 
     const payload = {
         distance_km: distanceKm,
