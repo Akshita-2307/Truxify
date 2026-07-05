@@ -35,6 +35,8 @@ class TripService {
     return value.endsWith('/') ? value.substring(0, value.length - 1) : value;
   }
 
+  String _encodePathSegment(String value) => Uri.encodeComponent(value);
+
   Future<Map<String, String>> _authHeaders() async {
     String? accessToken;
     try {
@@ -122,7 +124,9 @@ class TripService {
   Future<List<Map<String, dynamic>>> fetchTripItems(
     String tripDisplayId,
   ) async {
-    final uri = Uri.parse('$_apiBaseUrl/api/trips/$tripDisplayId/items');
+    final uri = Uri.parse(
+      '$_apiBaseUrl/api/trips/${_encodePathSegment(tripDisplayId)}/items',
+    );
     final response = await _httpClient.get(uri, headers: await _authHeaders());
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
