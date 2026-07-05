@@ -1,5 +1,6 @@
 import { redisClient } from '../config/db.js';
 import logger from '../middleware/logger.js';
+import crypto from 'crypto';
 
 const OTP_TTL_SECONDS = 300;
 const OTP_LENGTH = 4;
