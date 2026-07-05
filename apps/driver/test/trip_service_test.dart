@@ -179,12 +179,6 @@ void main() {
 
       final service = TripService(client: ownedTripClient(), httpClient: mockHttp);
 
-      final service = TripService(client: ownedTripClient(), httpClient: mockHttp);
-
-      final service = TripService(client: ownedTripClient(), httpClient: mockHttp);
-
-      final service = TripService(client: client, httpClient: mockHttp);
-
       expect(requests, hasLength(1));
       expect(requests.first.method, equals('PUT'));
       expect(
@@ -200,6 +194,23 @@ void main() {
       final mockHttp = MockClient((request) async {
         return http.Response('{"message": "Trip completed"}', 200);
       });
+
+      final service = TripService(client: ownedTripClient(), httpClient: mockHttp);
+
+      await expectLater(
+        service.markStopCompleted(stopId, tripDisplayId),
+        completes,
+      );
+    });
+
+    test('Throws exception if stop update returns null (invalid stop ID or not belonging to trip)', () async {
+      final mockHttp = MockClient((request) async {
+        return http.Response(
+          '{"error": "Stop not found or does not belong to this trip"}',
+          404,
+        );
+      });
+
 
       final service = TripService(client: ownedTripClient(), httpClient: mockHttp);
 
