@@ -173,7 +173,7 @@ const telemetryLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many demand prediction requests. Please try again later.' },
+  message: { error: 'Too many telemetry requests. Please try again later.' },
 });
 
 // Rate limiter for resend-otp endpoint
