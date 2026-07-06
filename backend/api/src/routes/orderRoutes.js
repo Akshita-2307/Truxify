@@ -22,20 +22,26 @@ import {
   cancelOrderSchema
 } from '../validation/requestSchemas.js';
 import { awardReputationPoints } from '../services/reputation.js';
-import { escrowDeposit, escrowRelease, escrowRefund } from '../services/escrow.js';
-import { BidAcceptanceService, DomainError } from '../services/order/bidAcceptanceService.js';
-import { sendDeliveryOtpNotification } from '../services/notificationService.js';
-import { predictDemand, predictPrice } from '../services/ml.js';
 import {
+  escrowDeposit,
+  escrowRelease,
+  escrowRefund,
   buildDepositTx,
   recordDepositTx,
-  escrowRelease,
   bookingIdFromUuid,
   submitEscrowRefund,
   confirmEscrowRefund,
   ESCROW_MATIC_PER_PAISA,
 } from '../services/escrow.js';
-import { sendDeliveryOtpNotification, storeDeliveryOtp, getActiveDeliveryOtp, verifyDeliveryOtp, expireDeliveryOtps } from '../services/notificationService.js';
+import { BidAcceptanceService, DomainError } from '../services/order/bidAcceptanceService.js';
+import {
+  sendDeliveryOtpNotification,
+  storeDeliveryOtp,
+  getActiveDeliveryOtp,
+  verifyDeliveryOtp,
+  expireDeliveryOtps
+} from '../services/notificationService.js';
+import { predictDemand, predictPrice } from '../services/ml.js';
 import { requireIdempotency } from '../middleware/idempotency.js';
 import { acquireLock, releaseLock } from '../lib/redisLock.js';
 import logger from '../middleware/logger.js';
@@ -168,6 +174,26 @@ const telemetryLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many demand prediction requests. Please try again later.' },
+});
+
+// Rate limiter for resend-otp endpoint
+const resendOtpLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: process.env.NODE_ENV === 'test' ? 1000 : 5,
+  keyGenerator: (req) => req.user?.id || 'unauthenticated',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many OTP resend requests. Please try again later.' },
+});
+
+// Rate limiter for change-drop endpoint
+const changeDropLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: process.env.NODE_ENV === 'test' ? 1000 : 5,
+  keyGenerator: (req) => req.user?.id || 'unauthenticated',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many drop location changes. Please try again later.' },
 });
 
 const bidAcceptanceService = new BidAcceptanceService({

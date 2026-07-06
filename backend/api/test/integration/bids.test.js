@@ -15,15 +15,18 @@ vi.mock('../../src/config/db.js', () => ({
 vi.mock('../../src/services/escrow.js', () => ({
   buildDepositTx: vi.fn(),
   recordDepositTx: vi.fn(),
+  escrowDeposit: vi.fn(),
   escrowRelease: vi.fn(),
   escrowRefund: vi.fn(),
+  submitEscrowRefund: vi.fn(),
+  confirmEscrowRefund: vi.fn(),
   // Mirrors the real implementation's escrow:<id> booking id derivation
   bookingIdFromUuid: vi.fn((orderId) => `escrow:${orderId}`),
   ESCROW_MATIC_PER_PAISA: 0.01,
 }));
 
 const { default: orderRouter } = await import('../../src/routes/orderRoutes.js');
-const { buildDepositTx: mockBuildDepositTx, recordDepositTx: mockRecordDepositTx, escrowRefund: mockEscrowRefund } = await import('../../src/services/escrow.js');
+const { buildDepositTx: mockBuildDepositTx, recordDepositTx: mockRecordDepositTx, escrowDeposit: mockEscrowDeposit, escrowRefund: mockEscrowRefund } = await import('../../src/services/escrow.js');
 
 function buildApp() {
   const app = express();
@@ -35,11 +38,13 @@ function buildApp() {
 const CUSTOMER = {
   'x-user-id': 'customer-1',
   'x-user-role': 'customer',
+  'x-dev-access-token': 'test-dev-token-123',
 };
 
 const DRIVER = {
   'x-user-id': 'driver-1',
   'x-user-role': 'driver',
+  'x-dev-access-token': 'test-dev-token-123',
 };
 
 describe('Bid Routes', () => {
