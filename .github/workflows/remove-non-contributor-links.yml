@@ -7,6 +7,13 @@ on:
     types: [created, edited]
   pull_request_target:
     types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      scan_all:
+        description: 'Scan and clean all existing issues, PRs, and comments across the repository'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -29,8 +36,8 @@ jobs:
         with:
           script: |
             const cleaner = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/remove-non-contributor-links.js`);
-            await cleaner.run({
-              github,
-              context,
-              core
-            });
+            if (context.eventName === 'workflow_dispatch' || context.inputs?.scan_all) {
+              await cleaner.scanAll({ github, context, core });
+            } else {
+              await cleaner.run({ github, context, core });
+            }

@@ -68,7 +68,7 @@ function removeLinks(text) {
 }
 
 /**
- * Main handler function executed by GitHub script step.
+ * Main handler function executed on real-time GitHub events.
  * @param {object} params
  * @param {object} params.github - GitHub Octokit REST instance
  * @param {object} params.context - GitHub context instance
@@ -166,9 +166,83 @@ async function run({ github, context, core }) {
   core.info('No issue, comment, or pull request found in event payload.');
 }
 
+/**
+ * Scans all existing issues, PRs, and comments in the repository and removes links from non-contributors.
+ * @param {object} params
+ * @param {object} params.github - GitHub Octokit REST instance
+ * @param {object} params.context - GitHub context instance
+ * @param {object} params.core - GitHub core instance
+ */
+async function scanAll({ github, context, core }) {
+  const owner = context.repo.owner;
+  const repo = context.repo.repo;
+
+  core.info(`Starting full repository scan for ${owner}/${repo}...`);
+
+  const issues = await github.paginate(github.rest.issues.listForRepo, {
+    owner,
+    repo,
+    state: 'all',
+    per_page: 100
+  });
+
+  core.info(`Found ${issues.length} total issues/PRs to inspect.`);
+
+  let updatedIssueCount = 0;
+  let updatedCommentCount = 0;
+
+  for (const issue of issues) {
+    if (isNonContributor(issue.author_association) && containsLinks(issue.body)) {
+      core.info(`Sanitizing body for ${issue.pull_request ? 'PR' : 'Issue'} #${issue.number}...`);
+      const sanitizedBody = removeLinks(issue.body);
+
+      if (issue.pull_request) {
+        await github.rest.pulls.update({
+          owner,
+          repo,
+          pull_number: issue.number,
+          body: sanitizedBody
+        });
+      } else {
+        await github.rest.issues.update({
+          owner,
+          repo,
+          issue_number: issue.number,
+          body: sanitizedBody
+        });
+      }
+      updatedIssueCount++;
+    }
+
+    const comments = await github.paginate(github.rest.issues.listComments, {
+      owner,
+      repo,
+      issue_number: issue.number,
+      per_page: 100
+    });
+
+    for (const comment of comments) {
+      if (isNonContributor(comment.author_association) && containsLinks(comment.body)) {
+        core.info(`Sanitizing comment ID ${comment.id} on #${issue.number}...`);
+        const sanitizedBody = removeLinks(comment.body);
+        await github.rest.issues.updateComment({
+          owner,
+          repo,
+          comment_id: comment.id,
+          body: sanitizedBody
+        });
+        updatedCommentCount++;
+      }
+    }
+  }
+
+  core.info(`Scan complete! Updated ${updatedIssueCount} issue/PR descriptions and ${updatedCommentCount} comments.`);
+}
+
 module.exports = {
   isNonContributor,
   containsLinks,
   removeLinks,
-  run
+  run,
+  scanAll
 };

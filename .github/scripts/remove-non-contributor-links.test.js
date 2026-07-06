@@ -6,7 +6,8 @@ const {
   isNonContributor,
   containsLinks,
   removeLinks,
-  run
+  run,
+  scanAll
 } = require('./remove-non-contributor-links');
 
 test('isNonContributor correctly classifies author associations', () => {
@@ -192,4 +193,68 @@ test('run updates PR body when non-contributor opens/edits PR with links', async
 
   assert.equal(updatedPrBody.includes('https://untrusted-image-host.net/pic.png'), false);
   assert.equal(updatedPrBody.includes('[link removed for security]'), true);
+});
+
+test('scanAll iterates through repository issues, PRs, and comments to clean non-contributor links', async () => {
+  const updatedIssues = [];
+  const updatedComments = [];
+
+  const mockGithub = {
+    paginate: async (fn, params) => {
+      if (fn === mockGithub.rest.issues.listForRepo) {
+        return [
+          { number: 1, author_association: 'NONE', body: 'Issue with http://spam1.com', pull_request: undefined },
+          { number: 2, author_association: 'MEMBER', body: 'Official issue with https://trusted.com', pull_request: undefined },
+          { number: 3, author_association: 'FIRST_TIMER', body: 'PR with http://spam2.com', pull_request: { url: 'https://...' } }
+        ];
+      }
+      if (fn === mockGithub.rest.issues.listComments) {
+        if (params.issue_number === 1) {
+          return [
+            { id: 10, author_association: 'NONE', body: 'Comment with http://spam-comment.com' },
+            { id: 11, author_association: 'OWNER', body: 'Owner comment with https://safe.com' }
+          ];
+        }
+        return [];
+      }
+      return [];
+    },
+    rest: {
+      issues: {
+        listForRepo: () => {},
+        listComments: () => {},
+        update: async ({ issue_number, body }) => {
+          updatedIssues.push({ issue_number, body });
+        },
+        updateComment: async ({ comment_id, body }) => {
+          updatedComments.push({ comment_id, body });
+        }
+      },
+      pulls: {
+        update: async ({ pull_number, body }) => {
+          updatedIssues.push({ pull_number, body });
+        }
+      }
+    }
+  };
+
+  const mockContext = {
+    repo: { owner: 'test-owner', repo: 'test-repo' }
+  };
+
+  const mockCore = {
+    info: () => {}
+  };
+
+  await scanAll({ github: mockGithub, context: mockContext, core: mockCore });
+
+  assert.equal(updatedIssues.length, 2);
+  assert.equal(updatedIssues[0].issue_number, 1);
+  assert.equal(updatedIssues[0].body.includes('http://spam1.com'), false);
+  assert.equal(updatedIssues[1].pull_number, 3);
+  assert.equal(updatedIssues[1].body.includes('http://spam2.com'), false);
+
+  assert.equal(updatedComments.length, 1);
+  assert.equal(updatedComments[0].comment_id, 10);
+  assert.equal(updatedComments[0].body.includes('http://spam-comment.com'), false);
 });
