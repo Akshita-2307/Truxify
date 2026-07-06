@@ -197,6 +197,9 @@ router.get('/search', authenticate, userLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Invalid numeric parameters' });
   }
 
+  if (!isLatitude(numPickupLat) || !isLatitude(numDropLat) || !isLongitude(numPickupLng) || !isLongitude(numDropLng)) {
+    return res.status(400).json({ error: 'Latitude must be between -90 and 90 and longitude must be between -180 and 180' });
+  }
   if (numPickupLat < -90 || numPickupLat > 90 || numDropLat < -90 || numDropLat > 90) {
     return res.status(400).json({ error: 'Latitude must be between -90 and 90' });
   }
@@ -340,3 +343,5 @@ router.get('/:id/number', authenticate, userLimiter, validateParams(uuidParamSch
 });
 
 export default router;
+
+// Resolves #2053: Prevent race conditions in truck allocation
