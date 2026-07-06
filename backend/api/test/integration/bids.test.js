@@ -281,7 +281,7 @@ describe('Bid Routes', () => {
   });
 
   it('POST /:id/bids/:bidId/accept executes RPC', async () => {
-    mockBuildDepositTx.mockResolvedValue({ txData: '0xdeadbeef' });
+    mockBuildDepositTx.mockResolvedValue({ to: '0xescrow', data: '0xdeadbeef' });
 
     m.store.orders.push({
       id: 'order-1',
@@ -332,7 +332,7 @@ describe('Bid Routes', () => {
   });
 
   it('POST /:id/bids/:bidId/accept triggers escrow deposit when wallet addresses present', async () => {
-    mockBuildDepositTx.mockResolvedValue({ txData: '0xdeadbeef', bookingId: 'escrow:MOCK' });
+    mockBuildDepositTx.mockResolvedValue({ to: '0xescrow', data: '0xdeadbeef', bookingId: 'escrow:OD-ESCROW' });
 
     m.store.orders.push({
       id: 'order-escrow',

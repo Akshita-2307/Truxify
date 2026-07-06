@@ -198,7 +198,8 @@ const changeDropLimiter = rateLimit({
 
 const bidAcceptanceService = new BidAcceptanceService({
   supabase,
-  escrowDepositFn: escrowDeposit,
+  buildDepositTxFn: buildDepositTx,
+  recordDepositTxFn: recordDepositTx,
   escrowRefundFn: escrowRefund,
   logger,
 });

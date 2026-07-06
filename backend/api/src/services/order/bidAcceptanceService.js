@@ -9,9 +9,10 @@ export class DomainError extends Error {
 }
 
 export class BidAcceptanceService {
-  constructor({ supabase, escrowDepositFn, escrowRefundFn, logger, notificationDispatcher }) {
+  constructor({ supabase, buildDepositTxFn, recordDepositTxFn, escrowRefundFn, logger, notificationDispatcher }) {
     this.supabase = supabase;
-    this.escrowDepositFn = escrowDepositFn;
+    this.buildDepositTxFn = buildDepositTxFn;
+    this.recordDepositTxFn = recordDepositTxFn;
     this.escrowRefundFn = escrowRefundFn;
     this.logger = logger;
     this.notificationDispatcher = notificationDispatcher;
@@ -68,26 +69,28 @@ export class BidAcceptanceService {
       truckInfo = data;
     }
 
-    let escrowTxHash = null;
-    if (driverWallet && customerWallet) {
-      const amountWei = ethers.parseEther((bid.bid_amount / 100).toFixed(2).toString());
-      try {
-        const depositResult = await this.escrowDepositFn(order.order_display_id, customerWallet, driverWallet, amountWei);
-        const txHash = depositResult?.txHash ?? null;
-        if (txHash) {
-          escrowTxHash = txHash;
-        } else {
-          throw new Error('Escrow deposit failed. Bid was not accepted.');
-        }
-      } catch (depositErr) {
-        throw new DomainError(500, {
-          error: 'Escrow deposit failed. Bid was not accepted.',
-          details: depositErr.message,
-          recovery: 'Check that the customer wallet has sufficient MATIC balance for the deposit and that the Polygon RPC endpoint is reachable.'
-        });
-      }
+    // Build the escrow deposit transaction
+    let depositTx = null;
+    let bookingId = null;
+    const amountWei = ethers.parseEther((bid.bid_amount / 100).toFixed(2).toString());
+    try {
+      const buildResult = await this.buildDepositTxFn(order.order_display_id, customerWallet, driverWallet, amountWei);
+      depositTx = buildResult;
+      bookingId = buildResult?.bookingId || `escrow:${order.order_display_id}`;
+    } catch (buildErr) {
+      throw buildErr; // Let it bubble up as a generic error to return 500
     }
 
+    // Update order with escrow booking info
+    const { error: escrowUpdateErr } = await this.supabase.from('orders').update({
+      escrow_booking_id: bookingId,
+      escrow_status: 'funding',
+    }).eq('id', orderId);
+    if (escrowUpdateErr) {
+      this.logger?.warn?.('[escrow] Failed to update escrow booking reference:', escrowUpdateErr.message);
+    }
+
+    // Execute RPC to accept bid
     const { error: rpcErr } = await this.supabase.rpc('accept_bid_tx', {
       p_bid_id: bidId,
       p_order_id: orderId,
@@ -102,13 +105,22 @@ export class BidAcceptanceService {
     });
 
     if (rpcErr) {
-      if (escrowTxHash) {
+      // Compensating transaction: refund the escrow since RPC failed
+      if (bookingId) {
         try {
           await this.escrowRefundFn(order.order_display_id);
           this.logger?.warn?.(`[escrow] Compensating refund issued for order ${order.order_display_id} after RPC failure.`);
         } catch (refundErr) {
           this.logger?.error?.(`[escrow] CRITICAL: Escrow refund also failed for order ${order.order_display_id}:`, refundErr.message);
         }
+      }
+      // Revert escrow status back to pending since RPC failed
+      const { error: revertErr } = await this.supabase.from('orders').update({
+        escrow_status: 'pending',
+        escrow_booking_id: null,
+      }).eq('id', orderId);
+      if (revertErr) {
+        this.logger?.error?.('[escrow] Failed to revert escrow status after RPC failure:', revertErr.message);
       }
       throw new DomainError(500, {
         error: 'Failed to accept bid atomically.',
@@ -117,20 +129,14 @@ export class BidAcceptanceService {
       });
     }
 
-    const escrowUpdate = {
-      escrow_booking_id: `escrow:${order.order_display_id}`,
-      escrow_status: escrowTxHash ? 'funded' : 'pending',
-    };
-    if (escrowTxHash) {
-      escrowUpdate.deposit_tx_hash = escrowTxHash;
-      escrowUpdate.escrow_deposited_at = new Date().toISOString();
+    // Record the deposit transaction
+    try {
+      await this.recordDepositTxFn(order.order_display_id, depositTx?.to, depositTx?.data);
+    } catch (recordErr) {
+      this.logger?.warn?.('[escrow] Failed to record deposit TX:', recordErr.message);
     }
 
-    const { error: escrowUpdateErr } = await this.supabase.from('orders').update(escrowUpdate).eq('id', orderId);
-    if (escrowUpdateErr) {
-      this.logger?.warn?.('[escrow] Failed to update escrow booking reference:', escrowUpdateErr.message);
-    }
-
+    // Send notifications
     if (this.notificationDispatcher) {
       try {
         await this.notificationDispatcher({
@@ -149,6 +155,7 @@ export class BidAcceptanceService {
       status: 200,
       body: {
         message: 'Bid accepted. Driver and truck assigned.',
+        depositTx,
       },
     };
   }
