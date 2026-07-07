@@ -1,7 +1,7 @@
 import express from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import crypto from 'crypto';
-import { ethers } from 'ethers';
+
 import { bidLimiter, userLimiter, safeIpKeyGenerator, createStore } from '../middleware/rateLimiter.js';
 import { supabase, redisClient, mongoDb } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
@@ -23,32 +23,19 @@ import {
 } from '../validation/requestSchemas.js';
 import { awardReputationPoints } from '../services/reputation.js';
 import {
-  escrowDeposit,
-  escrowRelease,
-  escrowRefund,
-  buildDepositTx,
   recordDepositTx,
-  bookingIdFromUuid,
   submitEscrowRefund,
   confirmEscrowRefund,
-  ESCROW_MATIC_PER_PAISA,
 } from '../services/escrow.js';
 import { BidAcceptanceService, DomainError } from '../services/order/bidAcceptanceService.js';
+import { OrderMilestoneService, clearOtpState, DELIVERY_OTP_READY_STATUSES, OTP_TTL_MINUTES } from '../services/order/orderMilestoneService.js';
 import {
-  getActiveDeliveryOtp,
-  verifyDeliveryOtp,
-  expireDeliveryOtps,
+  sendDeliveryOtpNotification,
+  storeDeliveryOtp,
+  expireDeliveryOtps
 } from '../services/notificationService.js';
-import {
-  OrderNotificationService,
-  checkOtpLockout,
-  recordOtpFailure,
-  clearOtpState,
-  OTP_TTL_MINUTES,
-  OTP_LOCKOUT_MINUTES,
-  OTP_MAX_FAILED_ATTEMPTS,
-  DELIVERY_OTP_READY_STATUSES,
-} from '../services/order/orderNotificationService.js';
+
+const orderMilestoneService = new OrderMilestoneService();
 import { predictDemand, predictPrice } from '../services/ml.js';
 import { requireIdempotency } from '../middleware/idempotency.js';
 import { acquireLock, releaseLock } from '../lib/redisLock.js';
@@ -67,13 +54,9 @@ function validateOrderInput(body) {
   return errors.length > 0 ? { valid: false, errors } : { valid: true };
 }
 
-// ── OTP brute-force protection (Redis + In-Memory Fallback) ────────────────────
-const OTP_TTL_MINUTES = parseInt(process.env.OTP_TTL_MINUTES || '15', 10);
-const OTP_MAX_FAILED_ATTEMPTS = parseInt(process.env.OTP_MAX_FAILED_ATTEMPTS || '5', 10);
-const OTP_LOCKOUT_MINUTES = parseInt(process.env.OTP_LOCKOUT_MINUTES || '30', 10);
-const IN_MEMORY_OTP_MAP_MAX_SIZE = parseInt(process.env.IN_MEMORY_OTP_MAP_MAX_SIZE || '10000', 10);
-const DELIVERY_OTP_READY_STATUSES = new Set(['arriving']);
+// ── OTP constants and state management moved to orderMilestoneService ──
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 
 // Rate limiter for the verify-delivery endpoint
 const verifyDeliveryLimiter = rateLimit({
@@ -735,80 +718,17 @@ router.post('/:id/bids/:bidId/accept', authenticate, userLimiter, requireRole(['
 // 12. UPDATE ORDER MILESTONE (ASSIGNED DRIVER)
 // ============================================================================
 router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver']), milestoneLimiter, validateParams(paramIdSchema), validateBody(updateMilestoneSchema), async (req, res) => {
-  const orderId = req.params.id;
-  const { milestone } = req.body;
-
-  const milestoneMap = {
-    'Truck Assigned': 'truck_assigned',
-    'En Route to Pickup': 'en_route_pickup',
-    'Arrived at Pickup': 'arrived_pickup',
-    'Goods Loaded': 'picked_up',
-    'In Transit': 'in_transit',
-    'Arriving': 'arriving',
-  };
-
-  if (milestone === 'Delivered') return res.status(400).json({ error: 'Cannot set Delivered milestone directly. Use /verify-delivery endpoint to confirm delivery.' });
-
   try {
-    const { data: order, error: orderErr } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
-    if (orderErr || !order) return res.status(404).json({ error: 'Order not found.' });
-    if (order.driver_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You are not assigned to this order.' });
-
-    const { data: timeline, error: tlErr } = await supabase
-      .from('order_timeline')
-      .select('milestone, sort_order, completed')
-      .eq('order_display_id', order.order_display_id)
-      .order('sort_order', { ascending: true });
-    if (tlErr) return res.status(500).json({ error: 'Failed to fetch order timeline.' });
-
-    const canonicalMilestones = new Set([...Object.keys(milestoneMap), 'Order Placed', 'Delivered']);
-    const lastCompleted = [...timeline].reverse().find(t => t.completed && canonicalMilestones.has(t.milestone));
-    const lastCompletedSortOrder = lastCompleted ? lastCompleted.sort_order : 10;
-
-    const timelineEntry = timeline.find(t => t.milestone === milestone);
-    if (!timelineEntry) return res.status(400).json({ error: `Milestone "${milestone}" is not part of this order's timeline.` });
-
-    if (timelineEntry.completed) {
-      return res.status(409).json({ error: `Milestone "${milestone}" has already been completed.` });
-    }
-
-    const nextExpected = timeline.find(t => !t.completed && t.sort_order > lastCompletedSortOrder);
-    if (!nextExpected || nextExpected.sort_order !== timelineEntry.sort_order) {
-      return res.status(422).json({
-        error: `Milestone out of sequence. Expected "${nextExpected ? nextExpected.milestone : 'none'}" before "${milestone}".`,
-      });
-    }
-
-    const status = milestoneMap[milestone];
-    const updates = { status, updated_at: new Date().toISOString() };
-
-    if (milestone === 'In Transit') {
-      await orderNotificationService.sendOrderNotification({
-        type: 'delivery_otp_in_transit',
-        orderId,
-        orderDisplayId: order.order_display_id,
-        customerId: order.customer_id,
-      });
-    }
-
-    const { error: timelineErr } = await supabase.from('order_timeline').update({ completed: true, milestone_time: new Date().toISOString() }).eq('order_display_id', order.order_display_id).eq('milestone', milestone);
-    if (timelineErr) return res.status(500).json({ error: 'Failed to update order timeline.', details: timelineErr.message });
-
-    const { data: updatedOrder, error: updateErr } = await supabase.from('orders').update(updates).eq('id', orderId).select('*').single();
-    if (updateErr) {
-      // Roll back the timeline mark since the order update failed
-      await supabase
-        .from('order_timeline')
-        .update({ completed: false, milestone_time: null })
-        .eq('order_display_id', order.order_display_id)
-        .eq('milestone', milestone);
-      return res.status(500).json({ error: 'Failed to update order.', details: updateErr.message });
-    }
-
-    const response = { message: 'Milestone updated successfully.', order: updatedOrder, milestone, status };
-
-    res.json(response);
+    const result = await orderMilestoneService.updateMilestone({
+      orderId: req.params.id,
+      milestone: req.body.milestone,
+      driverId: req.user.id,
+    });
+    res.json({ message: 'Milestone updated successfully.', ...result });
   } catch (err) {
+    if (err instanceof DomainError) {
+      return res.status(err.status).json(err.payload);
+    }
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -817,166 +737,19 @@ router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver'])
 // 13. VERIFY DELIVERY OTP AND RELEASE FUNDS (DRIVER)
 // ============================================================================
 router.post('/:id/verify-delivery', authenticate, userLimiter, requireRole(['driver']), verifyDeliveryLimiter, requireIdempotency(86400), validateParams(paramIdSchema), validateBody(verifyDeliverySchema), async (req, res) => {
-  const orderId = req.params.id;
-  const { otp } = req.body;
-
-  // Check for active lockout from previous failed attempts
-  if (await checkOtpLockout(orderId)) {
-    return res.status(429).json({
-      error: `Too many failed OTP attempts. Verification is locked for ${OTP_LOCKOUT_MINUTES} minutes.`,
-    });
-  }
-
   try {
-    const { data: order, error: orderErr } = await supabase.from('orders')
-      .select('id, order_display_id, driver_id, customer_id, escrow_status, escrow_release_attempts, status')
-      .eq('id', orderId)
-      .maybeSingle();
-    if (orderErr || !order) return res.status(404).json({ error: 'Order not found.' });
-    if (order.driver_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: You are not assigned to this order.' });
-    if (!DELIVERY_OTP_READY_STATUSES.has(order.status)) {
-      return res.status(409).json({ error: 'Delivery OTP can only be verified after the shipment reaches the delivery location.' });
-    }
-
-    const otpRecord = await getActiveDeliveryOtp(orderId);
-    if (!otpRecord) {
-      return res.status(400).json({
-        error: 'OTP not available or has expired. Please request a new delivery OTP.',
-      });
-    }
-
-    const submittedHash = crypto.createHash('sha256').update(String(otp)).digest('hex');
-    let isMatch = false;
-    if (otpRecord.otp_hash && otpRecord.otp_hash.length === submittedHash.length) {
-      isMatch = crypto.timingSafeEqual(
-        Buffer.from(otpRecord.otp_hash, 'hex'),
-        Buffer.from(submittedHash, 'hex')
-      );
-    }
-    if (!isMatch) {
-      const count = await recordOtpFailure(orderId);
-      const remaining = Math.max(0, OTP_MAX_FAILED_ATTEMPTS - count);
-      const message = remaining > 0
-        ? `Invalid OTP. ${remaining} attempt(s) remaining before lockout.`
-        : `Invalid OTP. Verification is locked for ${OTP_LOCKOUT_MINUTES} minutes due to too many failed attempts.`;
-      logger.warn(`[OTP] Failed verification attempt for order ${orderId} by driver ${req.user.id}. ${remaining} attempts remaining.`);
-      return res.status(400).json({ error: message });
-    }
-
-    // Guard against cancellation or a previous successful verification.
-    const { data: preUpdatedOrder, error: updateErr } = await supabase.from('orders').update({
-      updated_at: new Date().toISOString()
-    })
-      .eq('id', orderId)
-      .not('status', 'eq', 'cancelled')
-      .not('status', 'eq', 'payment_released')
-      .select('id, order_display_id, status')
-      .single();
-
-    if (updateErr) {
-      if (updateErr.code === 'PGRST116') {
-        return res.status(409).json({ error: 'Order was already cancelled or payment released.' });
-      }
-      return res.status(500).json({ error: 'Failed to verify OTP.', details: updateErr.message });
-    }
-
-    // Phase 1: Execute blockchain escrow release BEFORE crediting the driver's wallet.
-    // If the blockchain call fails, the database state is NOT modified and the driver can retry.
-    let releaseTxHash = null;
-    let escrowAlreadyReleased = false;
-    if (order.escrow_status === 'funded' || order.escrow_status === 'release_failed') {
-      try {
-        const releaseResult = await escrowRelease(order.order_display_id);
-        if (releaseResult.txHash) {
-          releaseTxHash = releaseResult.txHash;
-        } else if (releaseResult.alreadyReleased) {
-          escrowAlreadyReleased = true;
-        } else {
-          throw new Error('Escrow release returned no transaction hash');
-        }
-      } catch (releaseErr) {
-        logger.error('[escrow] Blockchain release failed for order', orderId, ':', releaseErr.message);
-        return res.status(503).json({
-          error: 'Blockchain escrow release failed. Payment cannot be processed. Please retry.',
-          retryable: true,
-        });
-      }
-    } else {
-      logger.info(`[escrow] Escrow not funded (status: ${order.escrow_status}) — skipping on-chain release.`);
-    }
-
-    // Phase 2: Only on blockchain success (or skip), call complete_trip_tx to credit the driver's wallet.
-    const { data: tripData, error: rpcErr } = await supabase.rpc('complete_trip_tx', {
-      p_order_id: orderId,
-      p_otp_id: otpRecord.id,
-      p_release_tx_hash: releaseTxHash,
+    const result = await orderMilestoneService.verifyDelivery({
+      orderId: req.params.id,
+      otp: req.body.otp,
+      driverId: req.user.id,
     });
-    if (rpcErr) {
-      logger.error('complete_trip_tx RPC failed:', rpcErr.message);
-      return res.status(500).json({ error: 'Failed to complete trip and release payment.', details: rpcErr.message });
-    }
-
-    // Post-RPC verification: confirm the order was actually updated to payment_released
-    const { data: verifiedOrder, error: verifyErr } = await supabase
-      .from('orders')
-      .select('status, escrow_status, escrow_release_attempts')
-      .eq('id', orderId)
-      .maybeSingle();
-
-    if (verifyErr || !verifiedOrder) {
-      logger.error(`[verify-delivery] Failed to verify order status after RPC for order ${orderId}`);
-      return res.status(500).json({ error: 'Failed to verify order status after payment release.' });
-    }
-
-    if (verifiedOrder.status !== 'payment_released') {
-      logger.warn(`[verify-delivery] Order ${orderId} status changed to "${verifiedOrder.status}" — payment was not released.`);
-      return res.status(409).json({
-        error: 'Order status changed during processing. Payment was not released.',
-      });
-    }
-
-    // OTP is only consumed after the RPC and blockchain release succeed — if either fails the driver can retry
-    await verifyDeliveryOtp(otpRecord.id);
-    await clearOtpState(orderId);
-
-    // Record blockchain release status in the database.
-    if (releaseTxHash || escrowAlreadyReleased) {
-      const { error: releaseUpdateErr } = await supabase.from('orders').update({
-        escrow_status: 'released',
-        escrow_release_error: null,
-        escrow_released_at: new Date().toISOString(),
-        release_tx_hash: releaseTxHash,
-      }).eq('id', orderId);
-
-      if (releaseUpdateErr) {
-        logger.error('[escrow] Release confirmed but persistence failed:', releaseUpdateErr.message);
-        return res.status(202).json({
-          message: 'Delivery verified successfully. Escrow payout requires reconciliation.',
-          escrow_status: 'released',
-          payment_released: true,
-        });
-      }
-
-      const driverId = tripData?.driver_id || order.driver_id;
-      const displayId = tripData?.order_display_id || order.order_display_id;
-      if (driverId) {
-        const { error: walletErr } = await supabase
-          .from('wallet_transactions')
-          .update({ description: `Escrow payout for ${displayId}` })
-          .eq('driver_id', driverId)
-          .eq('order_display_id', displayId)
-          .eq('txn_type', 'credit');
-
-        if (walletErr) {
-          logger.error('[wallet] Failed to persist escrow payout:', walletErr.message);
-        }
-      }
-    }
-
-    res.json({ message: 'Delivery verified successfully! Payment released to driver.' });
+    return res.status(result.status).json(result.body);
   } catch (err) {
+    if (err instanceof DomainError) {
+      return res.status(err.status).json(err.payload);
+    }
     logger.error('[verify-delivery] Exception:', err.message);
-    res.status(500).json({ error: 'Internal Server Error' });
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
