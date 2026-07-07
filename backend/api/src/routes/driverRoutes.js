@@ -13,6 +13,12 @@ import { generateAndStoreOtp, verifyOtp } from '../services/otpService.js';
 
 const router = express.Router();
 
+// DRIVER_LOGIN_OTP fast-fail guard (mirrors ML_API_KEY pattern)
+const _driverOtpKey = process.env.DRIVER_LOGIN_OTP;
+if (!_driverOtpKey) {
+  console.warn('WARNING: DRIVER_LOGIN_OTP not set — OTP-based flows will fail at runtime');
+}
+
 
 const loginOtpSchema = z.object({
   phone: z.string().trim().min(10).max(20),
