@@ -18,7 +18,11 @@ function sanitizeNumberPlate(plate) {
 
 function sanitizeTruckName(name) {
   if (!name || typeof name !== 'string') return '';
-  return name.trim().slice(0, 100).replace(/<[^>]*>/g, '');
+  return name.trim().slice(0, 100)
+    .replace(/[<>]/g, '')
+    .replace(/script/gi, '')
+    .replace(/javascript/gi, '')
+    .replace(/on\w+=/gi, '');
 }
 
 function validateCapacity(capacity) {
