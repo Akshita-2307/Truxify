@@ -29,6 +29,15 @@ import {
 } from '../services/escrow.js';
 import { BidAcceptanceService, DomainError } from '../services/order/bidAcceptanceService.js';
 import { OrderTimelineService } from '../services/order/orderTimelineService.js';
+import { createOrder } from '../services/order/orderCreationService.js';
+import {
+  sendDeliveryOtpNotification,
+  storeDeliveryOtp,
+  getActiveDeliveryOtp,
+  verifyDeliveryOtp,
+  expireDeliveryOtps
+} from '../services/notificationService.js';
+import { predictDemand } from '../services/ml.js';
 import { BidAcceptanceService } from '../services/order/bidAcceptanceService.js';
 import { DomainError } from '../services/order/domainError.js';
 import { OrderValidationService } from '../services/order/orderValidationService.js';
@@ -276,6 +285,12 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
       return res.status(500).json({ error: 'Failed to create load offer.', details: offerErr.message });
     }
 
+    const result = await createOrder({
+      orderData: req.body,
+      userId: req.user.id,
+      user: req.user,
+    });
+    return res.status(201).json(result);
     const { order } = await orderLifecycleService.createOrder(req.user.id, req.user.fullName || 'Customer', req.body);
     res.status(201).json({ message: 'Order created successfully and broadcasted to loads board.', order });
   } catch (err) {
@@ -283,7 +298,7 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
       return res.status(err.status).json(err.payload);
     }
     logger.error('Order creation exception:', err.message);
-    res.status(500).json({ error: 'Internal Server Error.' });
+    return res.status(500).json({ error: 'Internal Server Error.' });
   }
 });
 
@@ -644,7 +659,7 @@ router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver'])
     const { milestone } = req.body;
     const milestoneMap = {
       'Arrived at Pickup': 'at_pickup',
-      'Goods Loaded': 'in_transit',
+      'Goods Loaded': 'loaded',
       'In Transit': 'in_transit',
       'Arrived at Drop-off': 'at_dropoff',
       'Goods Unloaded': 'at_dropoff'

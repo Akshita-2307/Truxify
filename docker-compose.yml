@@ -3,6 +3,8 @@ services:
     build:
       context: ./backend/api
       target: development
+    env_file:
+      - .env
     ports:
       - "5000:5000"
     env_file:
@@ -32,6 +34,8 @@ services:
     build:
       context: ./backend/ml
     container_name: truxify-ml-engine
+    env_file:
+      - .env
     ports:
       - "8001:8000"
     environment:
