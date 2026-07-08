@@ -8,6 +8,10 @@ import {
   verifyDeliveryOtp,
 } from '../notificationService.js';
 import { escrowRelease } from '../escrow.js';
+import { DomainError } from './bidAcceptanceService.js';
+import { OrderTimelineService } from './orderTimelineService.js';
+
+const orderTimelineService = new OrderTimelineService({ supabase, logger });
 import { DomainError } from './domainError.js';
 
 export const OTP_TTL_MINUTES = parseInt(process.env.OTP_TTL_MINUTES || '15', 10);
@@ -112,6 +116,7 @@ export class OrderMilestoneService {
 
     const { data: timeline, error: tlErr } = await this.orderRepository.getTimelineWithSortCheck(order.order_display_id);
     if (tlErr) throw new DomainError(500, { error: 'Failed to fetch order timeline.' });
+    const timeline = await orderTimelineService.getOrderTimeline(order.order_display_id);
 
     const canonicalMilestones = new Set([...Object.keys(milestoneMap), 'Order Placed', 'Delivered']);
     const lastCompleted = [...timeline].reverse().find(t => t.completed && canonicalMilestones.has(t.milestone));
@@ -150,10 +155,12 @@ export class OrderMilestoneService {
 
     const { error: timelineErr } = await this.orderRepository.updateTimelineMilestone(order.order_display_id, milestone, { completed: true, milestone_time: new Date().toISOString() });
     if (timelineErr) throw new DomainError(500, { error: 'Failed to update order timeline.', details: timelineErr.message });
+    await orderTimelineService.completeMilestone(order.order_display_id, milestone);
 
     const { data: updatedOrder, error: updateErr } = await this.orderRepository.updateOrder(orderId, updates);
     if (updateErr) {
       await this.orderRepository.updateTimelineMilestone(order.order_display_id, milestone, { completed: false, milestone_time: null });
+      await orderTimelineService.resetMilestone(order.order_display_id, milestone);
       throw new DomainError(500, { error: 'Failed to update order.', details: updateErr.message });
     }
 

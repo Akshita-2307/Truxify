@@ -32,6 +32,16 @@ import {
 import { BidAcceptanceService, DomainError } from '../services/order/bidAcceptanceService.js';
 import { DeliveryVerificationService } from '../services/order/deliveryVerificationService.js';
 import { expireDeliveryOtps } from '../services/notificationService.js';
+import { OrderTimelineService } from '../services/order/orderTimelineService.js';
+import { createOrder } from '../services/order/orderCreationService.js';
+import {
+  sendDeliveryOtpNotification,
+  storeDeliveryOtp,
+  getActiveDeliveryOtp,
+  verifyDeliveryOtp,
+  expireDeliveryOtps
+} from '../services/notificationService.js';
+import { predictDemand } from '../services/ml.js';
 import { BidAcceptanceService } from '../services/order/bidAcceptanceService.js';
 import { DomainError } from '../services/order/domainError.js';
 import { OrderValidationService } from '../services/order/orderValidationService.js';
@@ -67,6 +77,11 @@ const orderLifecycleService = new OrderLifecycleService({
   orderRepository,
   orderTimelineService,
   bidAcceptanceService,
+});
+
+const orderTimelineService = new OrderTimelineService({
+  supabase,
+  logger,
 });
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -208,6 +223,9 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
       orderDisplayId = generateOrderDisplayId();
       const result = await orderRepository
         .createOrder({
+      const result = await supabase
+        .from('orders')
+        .insert({
           order_display_id: orderDisplayId,
           customer_id: req.user.id,
           status: 'pending',
@@ -223,6 +241,9 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
           estimated_price: estimatedPrice,
           payment_method_id, upi_id
         });
+        })
+        .select('id, order_display_id, status, created_at')
+        .single();
 
       order = result.data;
       orderErr = result.error;
@@ -257,6 +278,19 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
 
     const { error: offerErr } = await orderRepository
       .createLoadOffer({
+    try {
+      await orderTimelineService.createOrderTimeline(orderDisplayId);
+    } catch (timelineErr) {
+      await supabase.from('orders').delete().eq('id', order.id);
+      if (timelineErr instanceof DomainError) {
+        return res.status(timelineErr.status).json(timelineErr.payload);
+      }
+      return res.status(500).json({ error: 'Failed to create order timeline.', details: timelineErr.message });
+    }
+
+    const { error: offerErr } = await supabase
+      .from('load_offers')
+      .insert({
         order_display_id: orderDisplayId,
         customer_id: req.user.id,
         customer_name: req.user.fullName || 'Customer',
@@ -281,6 +315,17 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
       return res.status(500).json({ error: 'Failed to create load offer.', details: offerErr.message });
     }
 
+      await orderTimelineService.deleteOrderTimeline(orderDisplayId);
+      await supabase.from('orders').delete().eq('id', order.id);
+      return res.status(500).json({ error: 'Failed to create load offer.', details: offerErr.message });
+    }
+
+    const result = await createOrder({
+      orderData: req.body,
+      userId: req.user.id,
+      user: req.user,
+    });
+    return res.status(201).json(result);
     const { order } = await orderLifecycleService.createOrder(req.user.id, req.user.fullName || 'Customer', req.body);
     res.status(201).json({ message: 'Order created successfully and broadcasted to loads board.', order });
   } catch (err) {
@@ -288,7 +333,7 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
       return res.status(err.status).json(err.payload);
     }
     logger.error('Order creation exception:', err.message);
-    res.status(500).json({ error: 'Internal Server Error.' });
+    return res.status(500).json({ error: 'Internal Server Error.' });
   }
 });
 
@@ -441,6 +486,7 @@ router.get('/:id', authenticate, userLimiter, validateParams(paramIdSchema), asy
     const responseOrder = { ...order };
 
     const { data: timeline } = await orderRepository.getTimeline(order.order_display_id);
+    const timeline = await orderTimelineService.getOrderTimeline(order.order_display_id);
 
     let driverProfile = null;
     if (order.driver_id) {
@@ -496,6 +542,15 @@ router.get('/:id/timeline', authenticate, userLimiter, validateParams(paramIdSch
 
     if (timelineErr) return res.status(500).json({ error: 'Failed to fetch timeline.', details: timelineErr.message });
     res.json(timeline || []);
+    try {
+      const timeline = await orderTimelineService.getOrderTimeline(order.order_display_id);
+      res.json(timeline);
+    } catch (timelineErr) {
+      if (timelineErr instanceof DomainError) {
+        return res.status(timelineErr.status).json(timelineErr.payload);
+      }
+      return res.status(500).json({ error: 'Failed to fetch timeline.' });
+    }
   } catch (err) {
     if (err instanceof DomainError) {
       return res.status(err.status).json(err.payload);
@@ -731,12 +786,26 @@ router.post('/:id/bids/:bidId/accept', authenticate, userLimiter, requireRole(['
 router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver']), milestoneLimiter, validateParams(paramIdSchema), validateBody(updateMilestoneSchema), async (req, res) => {
   const orderId = req.params.id;
   const { milestone } = req.body;
+
+  const milestoneMap = {
+    'Truck Assigned': 'truck_assigned',
+    'En Route to Pickup': 'en_route_pickup',
+    'Arrived at Pickup': 'arrived_pickup',
+    'Goods Loaded': 'picked_up',
+    'In Transit': 'in_transit',
+    'Arriving': 'arriving',
+  };
+
   try {
+    if (milestone === 'Delivered') {
+      return res.status(400).json({ error: 'Cannot set Delivered milestone directly. Use /verify-delivery endpoint to confirm delivery.' });
+    }
+
     const orderId = req.params.id;
     const { milestone } = req.body;
     const milestoneMap = {
       'Arrived at Pickup': 'at_pickup',
-      'Goods Loaded': 'in_transit',
+      'Goods Loaded': 'loaded',
       'In Transit': 'in_transit',
       'Arrived at Drop-off': 'at_dropoff',
       'Goods Unloaded': 'at_dropoff'
@@ -747,6 +816,12 @@ router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver'])
 
     const { data: timeline, error: tlErr } = await orderRepository.getTimelineWithSortCheck(order.order_display_id);
     if (tlErr) return res.status(500).json({ error: 'Failed to fetch order timeline.' });
+    let timeline;
+    try {
+      timeline = await orderTimelineService.getOrderTimeline(order.order_display_id);
+    } catch (tlErr) {
+      return res.status(500).json({ error: 'Failed to fetch order timeline.' });
+    }
 
     const canonicalMilestones = new Set([...Object.keys(milestoneMap), 'Order Placed', 'Delivered']);
     const lastCompleted = [...timeline].reverse().find(t => t.completed && canonicalMilestones.has(t.milestone));
@@ -777,11 +852,20 @@ router.put('/:id/milestones', authenticate, userLimiter, requireRole(['driver'])
 
     const { error: timelineErr } = await orderRepository.updateTimelineMilestone(order.order_display_id, milestone, { completed: true, milestone_time: new Date().toISOString() });
     if (timelineErr) return res.status(500).json({ error: 'Failed to update order timeline.', details: timelineErr.message });
+    try {
+      await orderTimelineService.completeMilestone(order.order_display_id, milestone);
+    } catch (timelineErr) {
+      if (timelineErr instanceof DomainError) {
+        return res.status(timelineErr.status).json(timelineErr.payload);
+      }
+      return res.status(500).json({ error: 'Failed to update order timeline.', details: timelineErr.message });
+    }
 
     const { data: updatedOrder, error: updateErr } = await orderRepository.updateOrder(orderId, updates);
     if (updateErr) {
       // Roll back the timeline mark since the order update failed
       await orderRepository.updateTimelineMilestone(order.order_display_id, milestone, { completed: false, milestone_time: null });
+      await orderTimelineService.resetMilestone(order.order_display_id, milestone);
       return res.status(500).json({ error: 'Failed to update order.', details: updateErr.message });
     }
 
@@ -948,6 +1032,7 @@ router.put('/:id/change-drop', authenticate, userLimiter, changeDropLimiter, req
     } catch (timelineErr) {
       logger.warn('Failed to update timeline for change-drop:', timelineErr.message);
     }
+    await orderTimelineService.insertDropChangedEvent(order.order_display_id);
 
     await expireDeliveryOtps(order.id);
 
@@ -1104,6 +1189,7 @@ router.post('/:id/cancel', authenticate, userLimiter, requireRole(['customer']),
           }
 
           await orderRepository.updateTimelineMilestone(order.order_display_id, 'Order Placed', { completed: true, milestone_time: refundedAt });
+          await orderTimelineService.completeOrderPlacedMilestone(order.order_display_id, refundedAt);
 
           await expireDeliveryOtps(order.id);
 
@@ -1171,6 +1257,14 @@ router.post('/:id/cancel', authenticate, userLimiter, requireRole(['customer']),
     if (result.status === 202) {
       return res.status(202).json(result.body);
     }
+
+    const cancellationFee = updatedOrder?.cancellation_fee ?? 0;
+
+    await orderTimelineService.completeOrderPlacedMilestone(order.order_display_id);
+
+    await expireDeliveryOtps(order.id);
+
+    return res.json({ message: 'Order cancelled successfully.', cancellation_fee: cancellationFee, order: updatedOrder });
     return res.json(result.body);
   } catch (err) {
     if (err instanceof DomainError) {

@@ -37,6 +37,10 @@ import {
   startEscrowRefundReconciliation,
   stopEscrowRefundReconciliation
 } from './services/escrowRefundReconciliation.js'
+import {
+  startReputationReconciliation,
+  stopReputationReconciliation,
+} from './services/reputationReconciliation.js'
 
 // Configuration load from root folder is handled in db.js
 
@@ -213,6 +217,7 @@ server.listen(PORT, () => {
   logger.info(`Truxify API listening on port ${PORT}`)
   startEscrowRefundReconciliation(orderRepository)
   startEscrowReleaseReconciliation()
+  startReputationReconciliation()
 })
 
 // ============================================================================
@@ -237,6 +242,7 @@ async function shutdown (signal) {
   // Stop reconciliation timers so no new work starts during the drain.
   stopEscrowRefundReconciliation()
   stopEscrowReleaseReconciliation()
+  stopReputationReconciliation()
 
   const forceExit = setTimeout(() => {
     logger.error('[shutdown] Timeout exceeded — forcing exit.')
