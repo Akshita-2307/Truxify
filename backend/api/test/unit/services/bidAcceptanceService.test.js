@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createSupabaseMock } from '../../helpers/supabaseMock.js';
+import { OrderRepository } from '../../../src/repositories/orderRepository.js';
 import { BidAcceptanceService, DomainError } from '../../../src/services/order/bidAcceptanceService.js';
 
 vi.mock('../../../src/services/escrow.js', () => ({
@@ -23,8 +24,10 @@ describe('BidAcceptanceService', () => {
     escrowDeposit.mockResolvedValue({ txData: { to: '0xcontract', data: '0xabcd' }, bookingId: 'escrow:ORDER-001' });
     escrowRefund.mockResolvedValue({ txHash: '0x456' });
 
+    const orderRepository = new OrderRepository(supabaseMock.supabase);
+
     service = new BidAcceptanceService({
-      supabase: supabaseMock.supabase,
+      orderRepository,
       escrowDepositFn: escrowDeposit,
       escrowRefundFn: escrowRefund,
       logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -185,8 +188,9 @@ describe('BidAcceptanceService', () => {
     }];
 
     const brokenDispatcher = vi.fn().mockRejectedValue(new Error('boom'));
+    const orderRepository = new OrderRepository(supabaseMock.supabase);
     const serviceWithBrokenNotifications = new BidAcceptanceService({
-      supabase: supabaseMock.supabase,
+      orderRepository,
       escrowDepositFn: escrowDeposit,
       escrowRefundFn: escrowRefund,
       logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
