@@ -5,12 +5,10 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 import { userLimiter, createStore } from '../middleware/rateLimiter.js';
 
 import { validateBody, validateParams } from '../middleware/validate.js';
-import { driverOnlineSchema, withdrawSchema, otpSendSchema, uuidParamSchema } from '../validation/requestSchemas.js';
+import { driverOnlineSchema, withdrawSchema, uuidParamSchema } from '../validation/requestSchemas.js';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import logger from '../middleware/logger.js';
-import { generateAndStoreOtp, verifyOtp } from '../services/otpService.js';
-
 const router = express.Router();
 
 // Driver role authorization guard middleware
@@ -23,53 +21,6 @@ function requireDriverRole(req, res, next) {
   }
   next();
 }
-
-const loginOtpSchema = z.object({
-  phone: z.string().trim().min(10).max(20),
-  otp: z.string().regex(/^\d{4}$/, { message: 'OTP must be 4 digits' }),
-});
-
-export function otpPhoneKey(phone) {
-  if (typeof phone !== 'string') {
-    return 'phone:unknown';
-  }
-
-  const digits = phone.replace(/\D/g, '');
-  if (!digits) {
-    return 'phone:unknown';
-  }
-
-  const nationalDigits = digits.length === 12 && digits.startsWith('91')
-    ? digits.slice(2)
-    : digits;
-
-  return `phone:${nationalDigits}`;
-}
-
-function perPhoneLimiter(opts) {
-  return rateLimit({
-    ...opts,
-    keyGenerator: (req) => otpPhoneKey(req.body.phone),
-  });
-}
-
-const sendOtpLimiter = perPhoneLimiter({
-  windowMs: 60 * 1000,
-  max: 1,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: createStore('rl:otp-send:'),
-  message: { error: 'Too many OTP requests. Please wait before requesting again.' },
-});
-
-const verifyOtpLimiter = perPhoneLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: createStore('rl:otp-verify:'),
-  message: { error: 'Too many OTP verification attempts. Please try again later.' },
-});
 
 
 // ============================================================================
