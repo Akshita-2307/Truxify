@@ -5,8 +5,9 @@ import { GpsLog } from "../models/GpsLog.js";
 import { supabase } from "../config/db.js";
 
 /**
- * Attaches the Truxify Live Location WebSocket server to an existing
- * Node.js HTTP server.
+ * Initializes the Truxify Live Location WebSocket server on top of an existing
+ * Node.js HTTP server. Should be called once during startup after MongoDB
+ * is available.
  *
  * Architecture:
  *  /driver namespace — Driver app sends GPS updates here
@@ -23,13 +24,18 @@ import { supabase } from "../config/db.js";
  *
  * @param {import("http").Server} httpServer - Existing HTTP server instance
  */
-export function attachLocationServer(httpServer) {
-  const io = new Server(httpServer, {
+export function initLocationServer(httpServer) {
+  if (io) {
+    logger.warn('[initLocationServer] Already initialized — skipping duplicate call.');
+    return;
+  }
+  io = new Server(httpServer, {
     cors: {
-      origin: process.env.ALLOWED_ORIGINS?.split(",") || [
-        "http://localhost:3000",
-        "http://localhost:5000",
-      ],
+      origin: process.env.ALLOWED_ORIGINS?.split(",") || (
+        process.env.NODE_ENV === 'production'
+          ? []
+          : ["http://localhost:3000", "http://localhost:5000"]
+      ),
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -304,8 +310,6 @@ async function verifyDriverAssignment(driverId, bookingId) {
 async function verifyBookingOwnership(customerId, bookingId) {
   try {
     // Use Supabase client from existing db module
-    // Import Supabase client from existing db module
-    const { supabase } = await import("../config/db.js");
 
     const { data, error } = await supabase
       .from("bookings")
