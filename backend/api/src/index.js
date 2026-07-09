@@ -34,7 +34,11 @@ import logger from './middleware/logger.js'
 import { setupSwagger } from './config/swagger.js'
 import { correlationIdMiddleware } from './middleware/correlationId.js'
 import { requestIdMiddleware, requestLogger } from './middleware/requestId.js'
+<<<<<<< feature/request-scoped-order-cache
+import { requestCacheMiddleware } from './middleware/requestCacheMiddleware.js'
+=======
 import { requireJsonContent } from './middleware/contentType.js'
+>>>>>>> main
 import { initSentry, flushSentry, sentryErrorHandler } from './middleware/sentry.js'
 import {
   startEscrowRefundReconciliation,
@@ -180,6 +184,12 @@ app.use('/api/health', healthLimiter)
 app.use('/api/health', healthRoutes)
 app.use('/api/', globalLimiter)
 app.use('/api/v1/trips', tripRoutes)
+
+// ============================================================================
+// REQUEST-SCOPED CACHE — created per-request, destroyed after response.
+// Registers before all routes so every request handler benefits.
+// ============================================================================
+app.use('/api', requestCacheMiddleware)
 
 // ============================================================================
 // REST API ROUTING
