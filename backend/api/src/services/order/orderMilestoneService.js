@@ -17,11 +17,10 @@ import {
   DELIVERY_OTP_READY_STATUSES,
 } from './orderNotificationService.js';
 import { escrowRelease } from '../escrow.js';
-import { DomainError } from './bidAcceptanceService.js';
+import { DomainError } from './domainError.js';
 import { OrderTimelineService } from './orderTimelineService.js';
 
 const orderTimelineService = new OrderTimelineService({ supabase, logger });
-import { DomainError } from './domainError.js';
 
 export class OrderMilestoneService {
   constructor(orderRepository) {
