@@ -18,7 +18,8 @@ import {
   submitEscrowRefund,
   confirmEscrowRefund,
   ESCROW_MATIC_PER_PAISA,
-  validateEscrowSetup
+  validateEscrowSetup,
+  isEscrowEnabled
 } from '../../src/services/escrow.js'
 
 describe('escrow service — getEscrowBookingId', () => {
@@ -82,6 +83,12 @@ describe('escrow service — getEscrowBookingId', () => {
     vi.resetModules()
   })
 })
+
+describe('escrow service — isEscrowEnabled', () => {
+  it('returns false when blockchain env vars are not set (escrowContract is null)', () => {
+    expect(isEscrowEnabled()).toBe(false);
+  });
+});
 
 describe('escrow service — buildDepositTx (contract unconfigured)', () => {
   // escrowContract is null when POLYGON_RPC_URL / ESCROW_CONTRACT_ADDRESS /

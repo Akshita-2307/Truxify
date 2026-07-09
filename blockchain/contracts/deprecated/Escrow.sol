@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
 /// @title Escrow System for Truxify (DEPRECATED)
 /// @notice ⚠️ THIS CONTRACT IS DEPRECATED. Do NOT deploy or reference it.
 ///
@@ -15,7 +17,7 @@ pragma solidity ^0.8.24;
 ///
 /// @dev Retained only for historical reference. Deployed instances should
 ///      be migrated to TruxifyEscrow.sol before any further development.
-contract Escrow {
+contract Escrow is Pausable {
     enum EscrowStatus {
         None,
         Funded,
@@ -36,7 +38,6 @@ contract Escrow {
     mapping(address => uint256) public pendingWithdrawals;
     mapping(address => uint256) public releaseTimestamps;
     bool private locked;
-    bool public paused;
     uint256 public constant WITHDRAWAL_TIMEOUT = 30 days;
 
     event RelayerUpdated(address indexed relayer, bool authorized);
@@ -44,8 +45,6 @@ contract Escrow {
     event Released(bytes32 indexed bookingId, address indexed driver, uint256 amount);
     event Refunded(bytes32 indexed bookingId, address indexed customer, uint256 amount);
     event Withdrawn(address indexed recipient, uint256 amount);
-    event Paused(address indexed account);
-    event Unpaused(address indexed account);
     event EmergencyRecovered(address indexed recipient, uint256 amount);
 
     modifier onlyOwner() {
@@ -63,11 +62,6 @@ contract Escrow {
         locked = true;
         _;
         locked = false;
-    }
-
-    modifier whenNotPaused() {
-        require(!paused, "Contract is paused");
-        _;
     }
 
     /// @notice Initializes the contract and sets the initial relayer.
@@ -91,14 +85,12 @@ contract Escrow {
 
     /// @notice Pauses the contract, preventing all deposits, releases, and refunds.
     function pause() external onlyOwner {
-        paused = true;
-        emit Paused(msg.sender);
+        _pause();
     }
 
     /// @notice Unpauses the contract.
     function unpause() external onlyOwner {
-        paused = false;
-        emit Unpaused(msg.sender);
+        _unpause();
     }
 
     /// @notice Deposits funds into escrow for a specific booking.
