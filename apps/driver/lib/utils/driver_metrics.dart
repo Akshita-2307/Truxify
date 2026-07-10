@@ -180,4 +180,18 @@ class KpiCalculator {
   static double completionRate(int completed, int total) => total > 0 ? (completed / total) * 100 : 0;
   static double avgRating(double totalStars, int totalRatings) => totalRatings > 0 ? totalStars / totalRatings : 0;
   static double utilizationRate(double drivingHours, double onlineHours) => onlineHours > 0 ? (drivingHours / onlineHours) * 100 : 0;
+
+  static Map<String, double> all({
+    required int accepted, required int totalOffers,
+    required double earnings, required double km, required double hours,
+    required int completed, required double stars, required int ratings,
+    required double drivingHours, required double onlineHours,
+  }) => {
+    'acceptanceRate': acceptanceRate(accepted, totalOffers),
+    'earningsPerKm': earningsPerKm(earnings, km),
+    'earningsPerHour': earningsPerHour(earnings, hours),
+    'completionRate': completionRate(completed, totalOffers),
+    'avgRating': avgRating(stars, ratings),
+    'utilizationRate': utilizationRate(drivingHours, onlineHours),
+  };
 }
