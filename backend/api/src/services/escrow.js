@@ -269,6 +269,7 @@ export async function recordDepositTx (bookingId, txHash, expectedSenderAddress 
   }
   if (tx.from.toLowerCase() !== expectedSenderAddress.toLowerCase()) {
     return { error: 'Transaction sender does not match the registered customer wallet for this order' }
+  }
 
   logger.info(`[escrow] deposit confirmed for booking ${bookingId} in block ${receipt.blockNumber}`)
   return { txHash: receipt.hash, bookingId }
