@@ -4,6 +4,10 @@ import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
 
+/// Centralized Firebase Cloud Messaging service.
+///
+/// Handles FCM token registration, unregistration, and refresh for both
+/// customer and driver apps using [ApiClient] for all backend communication.
 class FcmService {
   static Future<void> initializeAndRegister() async {
     try {
@@ -87,11 +91,11 @@ class FcmService {
 
   static Future<void> _sendTokenToBackend(String? token) async {
     final firebaseUser = FirebaseAuth.instance.currentUser;
-    final userId = firebaseUser?.uid;
-    if (userId == null) {
+    if (firebaseUser == null) {
       debugPrint('[FCM] No authenticated user, skipping token upload.');
       return;
     }
+
     final apiClient = ApiClient();
     try {
       await apiClient.put(
@@ -108,4 +112,3 @@ class FcmService {
     }
   }
 }
-export 'package:truxify_shared/src/services/fcm_service.dart';
