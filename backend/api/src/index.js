@@ -28,6 +28,7 @@ import authRoutes from './routes/authRoutes.js'
 import healthRoutes from './routes/healthRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import lookupRoutes from './routes/lookupRoutes.js'
+import webhookRoutes from './routes/webhookRoutes.js'
 
 import logger from './middleware/logger.js'
 import { setupSwagger } from './config/swagger.js'
@@ -41,6 +42,7 @@ import {
   startReputationReconciliation,
   stopReputationReconciliation,
 } from './services/reputationReconciliation.js'
+import { startDlqWorker, stopDlqWorker } from './workers/dlqWorker.js'
 
 // Configuration load from root folder is handled in db.js
 
@@ -168,6 +170,7 @@ app.use('/api/v1/trips', tripRoutes)
   app.use('/api/v1', lookupRoutes)
   app.use('/api/auth', authLimiter, authRoutes)
   app.use('/api/v1/admin', adminRoutes)
+  app.use('/api/webhooks', webhookRoutes)
 
 // Setup Swagger Documentation
 setupSwagger(app)
@@ -215,9 +218,10 @@ const PORT = process.env.PORT || 5000
 
 server.listen(PORT, () => {
   logger.info(`Truxify API listening on port ${PORT}`)
+  startEscrowReleaseReconciliation(orderRepository)
   startEscrowRefundReconciliation(orderRepository)
-  startEscrowReleaseReconciliation()
-  startReputationReconciliation()
+  startReputationReconciliation(orderRepository)
+  startDlqWorker()
 })
 
 // ============================================================================
@@ -237,12 +241,13 @@ async function shutdown (signal) {
   }
   shuttingDown = true
 
-  logger.info(`${signal} received — draining connections...`)
+  logger.info('Received shutdown signal, initiating graceful shutdown...');
 
-  // Stop reconciliation timers so no new work starts during the drain.
-  stopEscrowRefundReconciliation()
+  // Stop background workers
   stopEscrowReleaseReconciliation()
+  stopEscrowRefundReconciliation()
   stopReputationReconciliation()
+  stopDlqWorker()
 
   const forceExit = setTimeout(() => {
     logger.error('[shutdown] Timeout exceeded — forcing exit.')
