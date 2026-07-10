@@ -34,11 +34,10 @@ import logger from './middleware/logger.js'
 import { setupSwagger } from './config/swagger.js'
 import { correlationIdMiddleware } from './middleware/correlationId.js'
 import { requestIdMiddleware, requestLogger } from './middleware/requestId.js'
-<<<<<<< feature/request-scoped-order-cache
+feature/request-scoped-order-cache
 import { requestCacheMiddleware } from './middleware/requestCacheMiddleware.js'
-=======
 import { requireJsonContent } from './middleware/contentType.js'
->>>>>>> main
+main
 import { initSentry, flushSentry, sentryErrorHandler } from './middleware/sentry.js'
 import {
   startEscrowRefundReconciliation,
@@ -61,9 +60,9 @@ try {
   process.exit(1)
 }
 
-// ============================================================================
+// ======
 // STARTUP VALIDATION — crash fast, not at request time
-// ============================================================================
+// ======
 if (process.env.BYPASS_AUTH === 'true' && process.env.NODE_ENV !== 'development') {
   logger.fatal('BYPASS_AUTH is enabled outside development. This is a severe security misconfiguration. Set BYPASS_AUTH=false (or unset it), and set NODE_ENV=development if you need local testing.')
   process.exit(1)
@@ -104,10 +103,10 @@ const server = http.createServer(app)
 const trustProxy = process.env.TRUST_PROXY !== undefined ? Number(process.env.TRUST_PROXY) : 1
 app.set('trust proxy', trustProxy)
 
-// ============================================================================
+// ======
 // 🔒 ADVANCED SECURITY HEADERS (HELMET CONFIGURATION)
 // Resolves missing security headers from Issues #361 and #944
-// ============================================================================
+// ======
 app.use(helmet({
   // Content Security Policy (CSP) - Prevents XSS and data injection
   contentSecurityPolicy: {
@@ -159,7 +158,7 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json({ limit: '1mb' })) // Added payload limit for security
 app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 
-// ============================================================================
+// ======
 // CORRELATION ID + REQUEST ID + REQUEST LOGGER
 // Registered before all routes and rate limiters so that every incoming
 // request (including rate-limited or 404) is logged with a correlation ID.
@@ -167,7 +166,7 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 //    log calls automatically include the correlationId (via logger Proxy).
 // 2. requestIdMiddleware   — adds X-Request-Id header & req.requestId.
 // 3. requestLogger         — logs request start / finish metadata.
-// ============================================================================
+// ======
 app.use(correlationIdMiddleware)
 app.use(requestIdMiddleware)
 app.use(requestLogger)
@@ -177,23 +176,23 @@ app.use(requestLogger)
 // allowed types match the parsers registered above.
 app.use(requireJsonContent)
 
-// ============================================================================
+// ======
 // RATE LIMITING
-// ============================================================================
+// ======
 app.use('/api/health', healthLimiter)
 app.use('/api/health', healthRoutes)
 app.use('/api/', globalLimiter)
 app.use('/api/v1/trips', tripRoutes)
 
-// ============================================================================
+// ======
 // REQUEST-SCOPED CACHE — created per-request, destroyed after response.
 // Registers before all routes so every request handler benefits.
-// ============================================================================
+// ======
 app.use('/api', requestCacheMiddleware)
 
-// ============================================================================
+// ======
 // REST API ROUTING
-// ============================================================================
+// ======
 app.use('/api/orders', orderRoutes)
 app.use('/api/driver', driverRoutes)
 app.use('/api/loads', loadRoutes)
@@ -238,16 +237,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Critical Internal Server Error.' })
 })
 
-// ============================================================================
+// ======
 // WEBSOCKET SERVER INIT (wait for MongoDB before accepting WebSocket connections)
-// ============================================================================
+// ======
 await waitForMongoDb()
 initWebSocketServer(server, orderRepository)
 initLocationServer(server)
 
-// ============================================================================
+// ======
 // START SERVER
-// ============================================================================
+// ======
 const PORT = process.env.PORT || 5000
 
 server.listen(PORT, () => {
@@ -257,9 +256,9 @@ server.listen(PORT, () => {
   startReputationReconciliation()
 })
 
-// ============================================================================
+// ======
 // GRACEFUL SHUTDOWN
-// ============================================================================
+// ======
 const SHUTDOWN_TIMEOUT_MS = 10_000
 
 /** @type {boolean} */
