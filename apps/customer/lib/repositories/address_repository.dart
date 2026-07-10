@@ -59,3 +59,11 @@ class AddressRepository {
         .update({'is_default': false}).eq('user_id', userId);
   }
 }
+
+class AddressValidator {
+  static const int maxAddresses = 20;
+  static const int minLength = 5;
+  static bool isValid(String addr) => addr.trim().length >= minLength && addr.trim().contains(RegExp(r'[a-zA-Z]'));
+  static String normalizeLabel(String label) => label.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
+  static bool isDuplicate(String existing, String newLabel) => normalizeLabel(existing) == normalizeLabel(newLabel);
+}
