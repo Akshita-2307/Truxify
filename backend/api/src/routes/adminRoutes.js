@@ -1,11 +1,12 @@
 import express from 'express';
 import { supabase } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
+import { adminRateLimiter } from '../middleware/rateLimiter.js';
 import logger from '../middleware/logger.js';
 
 const router = express.Router();
 
-router.get('/dashboard', authenticate, requireRole(['admin']), async (req, res) => {
+router.get('/dashboard', authenticate, adminRateLimiter, requireRole(['admin']), async (req, res) => {
   try {
     const { count: activeDrivers, error: driversErr } = await supabase
       .from('profiles')
