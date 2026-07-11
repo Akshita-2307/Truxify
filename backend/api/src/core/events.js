@@ -13,7 +13,20 @@ class EventBus extends EventEmitter {
    * @param  {...any} args 
    */
   emitSafe(event, ...args) {
-    return this.emit(event, ...args);
+    const listeners = this.rawListeners(event);
+    for (const listener of listeners) {
+      try {
+        const result = listener(...args);
+        if (result && typeof result.catch === 'function') {
+          result.catch(err =>
+            console.error(`[EventBus] Unhandled async listener error for "${event}":`, err)
+          );
+        }
+      } catch (err) {
+        console.error(`[EventBus] Sync listener error for "${event}":`, err);
+      }
+    }
+    return listeners.length > 0;
   }
 }
 

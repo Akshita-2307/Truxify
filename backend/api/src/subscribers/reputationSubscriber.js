@@ -4,7 +4,6 @@ import { OrderRepository } from '../repositories/orderRepository.js';
 import { supabase } from '../config/db.js';
 import logger from '../middleware/logger.js';
 
-const orderRepository = new OrderRepository(supabase);
 
 eventBus.on('rating:submitted', async (payload) => {
   const { driverWallet, stars, orderDisplayId } = payload;
@@ -22,6 +21,7 @@ eventBus.on('rating:submitted', async (payload) => {
     
     // Attempt to log failure in DB for retry worker
     try {
+      const orderRepository = new OrderRepository(supabase);
       await orderRepository.insertReputationFailure({
         driver_wallet: driverWallet,
         stars,

@@ -761,11 +761,15 @@ export class OrderLifecycleService {
     const polygonAddress = driverDetails?.polygon_wallet_address ?? null;
 
     if (polygonAddress) {
-      eventBus.emitSafe('rating:submitted', { 
-        driverWallet: polygonAddress, 
-        stars, 
-        orderDisplayId: order.order_display_id 
-      });
+      try {
+        eventBus.emitSafe('rating:submitted', { 
+          driverWallet: polygonAddress, 
+          stars, 
+          orderDisplayId: order.order_display_id 
+        });
+      } catch (err) {
+        logger.error(`[OrderLifecycle] Failed to emit rating:submitted event: ${err.message}`);
+      }
     } else {
       logger.warn(`[reputation] Driver ${order.driver_id} has no polygon_wallet_address — skipping on-chain update.`);
     }
