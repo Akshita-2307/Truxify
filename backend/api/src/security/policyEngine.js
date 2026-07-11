@@ -13,6 +13,7 @@ const ROLES = Object.freeze({
 });
 
 function roleAllowed(policyRoles, userRole) {
+  if (!userRole) return false;
   if (!policyRoles || policyRoles.length === 0) return true;
   return policyRoles.includes(userRole);
 }
@@ -49,6 +50,7 @@ const POLICIES = {
   'profile:view-statement':    { roles: [ROLES.DRIVER] },
 
   'driver:view-stats':         { roles: [ROLES.DRIVER] },
+  'document:upload':           { roles: [ROLES.DRIVER] },
   'driver:toggle-online':      { roles: [ROLES.DRIVER] },
   'driver:view-wallet':        { roles: [ROLES.DRIVER] },
   'driver:view-earnings':      { roles: [ROLES.DRIVER] },
@@ -92,7 +94,7 @@ export class PolicyEngine {
     if (!roleAllowed(policy.roles, user.role)) {
       throw new PolicyError(403, 'Forbidden: Insufficient privileges.');
     }
-    if (policy.ownership && !policy.ownership(user, resource || {})) {
+    if (resource !== undefined && policy.ownership && !policy.ownership(user, resource)) {
       throw new PolicyError(403, 'Access Denied: You do not have permission to access this resource.');
     }
   }

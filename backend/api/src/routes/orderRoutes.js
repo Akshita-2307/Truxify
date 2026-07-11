@@ -32,9 +32,6 @@ import {
 } from '../services/escrow.js';
 import { BidAcceptanceService, DomainError } from '../services/order/bidAcceptanceService.js';
 import { DeliveryVerificationService } from '../services/order/deliveryVerificationService.js';
-import { expireDeliveryOtps } from '../services/notificationService.js';
-import { OrderTimelineService } from '../services/order/orderTimelineService.js';
-import { createOrder } from '../services/order/orderCreationService.js';
 import {
   sendDeliveryOtpNotification,
   storeDeliveryOtp,
@@ -42,22 +39,17 @@ import {
   verifyDeliveryOtp,
   expireDeliveryOtps
 } from '../services/notificationService.js';
-import { predictDemand } from '../services/ml.js';
-import { BidAcceptanceService } from '../services/order/bidAcceptanceService.js';
-import { DomainError } from '../services/order/domainError.js';
+import { OrderTimelineService } from '../services/order/orderTimelineService.js';
+import { createOrder } from '../services/order/orderCreationService.js';
 import { OrderValidationService } from '../services/order/orderValidationService.js';
 import { OrderMilestoneService } from '../services/order/orderMilestoneService.js';
-import { expireDeliveryOtps } from '../services/notificationService.js';
+import { predictDemand, predictPrice } from '../services/ml.js';
 import {
   verifyDelivery,
   resendDeliveryOtp,
 } from '../services/order/deliveryVerificationService.js';
-import { predictDemand, predictPrice } from '../services/ml.js';
 import { requireIdempotency } from '../middleware/idempotency.js';
 import logger from '../middleware/logger.js';
-import { OrderRepository } from '../repositories/orderRepository.js';
-import { OrderTimelineService } from '../services/order/orderTimelineService.js';
-import { BidAcceptanceService } from '../services/order/bidAcceptanceService.js';
 import { OrderLifecycleService } from '../services/order/orderLifecycleService.js';
 
 const router = express.Router();
@@ -482,7 +474,7 @@ router.get('/:id', authenticate, userLimiter, validateParams(paramIdSchema), asy
     }
     const order = await orderValidationService.findOrderByIdOrDisplayId(orderId, '*');
     orderValidationService.assertOrderFound(order);
-    orderValidationService.assertOrderAccess(order, req.user.id);
+    orderValidationService.assertOrderAccess(order, req.user);
 
     const responseOrder = { ...order };
 
@@ -537,7 +529,7 @@ router.get('/:id/timeline', authenticate, userLimiter, validateParams(paramIdSch
     }
     const order = await orderValidationService.findOrderByIdOrDisplayId(orderId, 'customer_id, driver_id, order_display_id');
     orderValidationService.assertOrderFound(order);
-    orderValidationService.assertOrderAccess(order, req.user.id);
+    orderValidationService.assertOrderAccess(order, req.user);
 
     const { data: timeline, error: timelineErr } = await orderRepository.getTimeline(order.order_display_id);
 

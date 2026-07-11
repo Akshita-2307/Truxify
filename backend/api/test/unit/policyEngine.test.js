@@ -220,6 +220,18 @@ describe('PolicyEngine', () => {
         expect(() => policy.authorize(user('driver'), 'ticket:create')).not.toThrow();
         expect(() => policy.authorize(user('admin'), 'ticket:create')).not.toThrow();
       });
+
+      it('rejects missing role for open actions', () => {
+        expect(() => policy.authorize({ id: 'user-1' }, 'load-offer:view-all')).toThrow(PolicyError);
+        expect(() => policy.authorize({ id: 'user-1' }, 'ticket:create')).toThrow(PolicyError);
+        expect(() => policy.authorize({ id: 'user-1' }, 'profile:view')).toThrow(PolicyError);
+      });
+
+      it('rejects unknown role for role-restricted actions', () => {
+        expect(() => policy.authorize(user('superadmin'), 'order:create')).toThrow(PolicyError);
+        expect(() => policy.authorize(user('superadmin'), 'admin:view-dashboard')).toThrow(PolicyError);
+        expect(() => policy.authorize(user('superadmin'), 'driver:view-stats')).toThrow(PolicyError);
+      });
     });
 
     describe('Support ticket ownership', () => {

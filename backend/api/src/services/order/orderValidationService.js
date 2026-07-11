@@ -38,9 +38,9 @@ export class OrderValidationService {
     }
   }
 
-  assertOrderAccess(order, userId) {
+  assertOrderAccess(order, user) {
     try {
-      policy.authorize({ id: userId, role: 'customer' }, 'order:view', { order });
+      policy.authorize(user, 'order:view', { order });
     } catch (err) {
       throw new DomainError(403, { error: 'Access Denied: You do not own or are not assigned to this order.' });
     }
