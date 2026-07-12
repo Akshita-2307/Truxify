@@ -1,7 +1,5 @@
 import crypto from 'crypto';
-import { redisClient } from '../../config/db.js';
-import { DomainError } from './bidAcceptanceService.js';
-import { supabase, redisClient } from '../../config/db.js';
+import { redisClient, supabase } from '../../config/db.js';
 import { DomainError } from './domainError.js';
 import {
   sendDeliveryOtpNotification,
@@ -226,11 +224,8 @@ export class DeliveryVerificationService {
     if (guardResult.error) {
       throw new DomainError(409, { error: 'Order was already cancelled or payment released.' });
     }
-  if (guardErr) {
-    if (guardErr.code === 'PGRST116') {
-      throw new DomainError(409, { error: 'Order was already cancelled or payment released.' });
-    }
-    throw new DomainError(500, { error: 'Failed to verify OTP.', details: guardErr.message });
+  if (guardResult && guardResult.error && guardResult.error.code === 'PGRST116') {
+    throw new DomainError(409, { error: 'Order was already cancelled or payment released.' });
   }
 
     let releaseTxHash = null;
