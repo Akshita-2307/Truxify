@@ -1,5 +1,6 @@
 import { getRequestCache } from '../lib/requestContext.js';
 import { executeWithRetry, isRetryable } from '../core/retry.js';
+import { measureExecution } from '../core/performanceMetrics.js';
 import { buildPagination } from '../utils/pagination.js';
 
 export class OrderRepository {
@@ -23,7 +24,7 @@ export class OrderRepository {
     return executeWithRetry(async () => {
       let result;
       try {
-        result = await queryFn();
+        result = await measureExecution(`OrderRepository.${operationName}`, queryFn);
       } catch (err) {
         if (isRetryable(err)) {
           throw err;
