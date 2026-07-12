@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart' as ll;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/app_routes.dart';
 import '../core/supabase_config.dart';
+import '../l10n/app_localizations.dart';
 import '../models/app_models.dart';
 import '../models/marketplace_models.dart';
 import '../theme/app_theme.dart';
@@ -323,6 +324,22 @@ class _TripsScreenState extends State<TripsScreen> {
     return (_completedCount() / total) * 100;
   }
 
+  String _localizedFilterLabel(BuildContext context, int index) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (index) {
+      case 0:
+        return l10n.all;
+      case 1:
+        return l10n.active2;
+      case 2:
+        return l10n.completed2;
+      case 3:
+        return l10n.cancelled2;
+      default:
+        return _statusFilters[index];
+    }
+  }
+
   String _formatEarnings(int paise) {
     final rupees = paise / 100;
     if (rupees >= 100000) {
@@ -427,7 +444,7 @@ class _TripsScreenState extends State<TripsScreen> {
                   const BottomSheetHandle(),
                   const SizedBox(height: 16),
                   Text(
-                    'Sort Trips',
+                    AppLocalizations.of(context)!.sortTrips,
                     style: GoogleFonts.dmSans(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -435,23 +452,23 @@ class _TripsScreenState extends State<TripsScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  _buildSortOption(context, 'Newest first', 0, tempSortIndex,
+                  _buildSortOption(context, AppLocalizations.of(context)!.newestFirst, 0, tempSortIndex,
                       (idx) {
                     setBottomSheetState(() => tempSortIndex = idx);
                   }),
-                  _buildSortOption(context, 'Oldest first', 1, tempSortIndex,
+                  _buildSortOption(context, AppLocalizations.of(context)!.oldestFirst, 1, tempSortIndex,
                       (idx) {
                     setBottomSheetState(() => tempSortIndex = idx);
                   }),
                   _buildSortOption(
-                      context, 'Highest earnings', 2, tempSortIndex, (idx) {
+                      context, AppLocalizations.of(context)!.highestEarnings, 2, tempSortIndex, (idx) {
                     setBottomSheetState(() => tempSortIndex = idx);
                   }),
-                  _buildSortOption(context, 'Lowest earnings', 3, tempSortIndex,
+                  _buildSortOption(context, AppLocalizations.of(context)!.lowestEarnings, 3, tempSortIndex,
                       (idx) {
                     setBottomSheetState(() => tempSortIndex = idx);
                   }),
-                  _buildSortOption(context, 'By status', 4, tempSortIndex,
+                  _buildSortOption(context, AppLocalizations.of(context)!.byStatus, 4, tempSortIndex,
                       (idx) {
                     setBottomSheetState(() => tempSortIndex = idx);
                   }),
@@ -472,7 +489,7 @@ class _TripsScreenState extends State<TripsScreen> {
                         elevation: 0,
                       ),
                       child: Text(
-                        'Apply',
+                        AppLocalizations.of(context)!.apply,
                         style: GoogleFonts.dmSans(
                           color: Theme.of(context).colorScheme.surface,
                           fontWeight: FontWeight.w600,
@@ -574,7 +591,7 @@ class _TripsScreenState extends State<TripsScreen> {
                   Row(
                     children: [
                       Text(
-                        _topTabIndex == 0 ? 'My Trips' : 'Marketplace',
+                        _topTabIndex == 0 ? AppLocalizations.of(context)!.myTrips : AppLocalizations.of(context)!.marketplace,
                         style: GoogleFonts.dmSans(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -637,8 +654,8 @@ class _TripsScreenState extends State<TripsScreen> {
                       final loadId = load.id;
                       if (loadId.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('This load is missing an id.')),
+                          SnackBar(
+                              content: Text(AppLocalizations.of(context)!.thisLoadIsMissingId)),
                         );
                         return;
                       }
@@ -655,13 +672,13 @@ class _TripsScreenState extends State<TripsScreen> {
                           };
                         });
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Bid submitted (Pending).')),
+                          SnackBar(
+                              content: Text(AppLocalizations.of(context)!.bidSubmitted)),
                         );
                       } catch (e) {
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to submit bid: $e')),
+                          SnackBar(content: Text(AppLocalizations.of(context)!.failedToSubmitBid)),
                         );
                       }
                     },
@@ -688,7 +705,7 @@ class _TripsScreenState extends State<TripsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Total trips',
+                            AppLocalizations.of(context)!.totalTrips,
                             style: GoogleFonts.dmSans(
                               fontSize: 10,
                               color:
@@ -713,7 +730,7 @@ class _TripsScreenState extends State<TripsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Total earned',
+                            AppLocalizations.of(context)!.totalEarned,
                             style: GoogleFonts.dmSans(
                               fontSize: 10,
                               color:
@@ -738,7 +755,7 @@ class _TripsScreenState extends State<TripsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Completion',
+                            AppLocalizations.of(context)!.completion,
                             style: GoogleFonts.dmSans(
                               fontSize: 10,
                               color:
@@ -787,7 +804,7 @@ class _TripsScreenState extends State<TripsScreen> {
                         ),
                         child: Center(
                           child: Text(
-                            _statusFilters[index],
+                            _localizedFilterLabel(context, index),
                             style: GoogleFonts.dmSans(
                               fontSize: 12,
                               fontWeight: isSelected
@@ -830,7 +847,7 @@ class _TripsScreenState extends State<TripsScreen> {
                                 const SizedBox(height: 40),
                                 Center(
                                   child: Text(
-                                    'Failed to load trips.\nPull down to retry.',
+                                    AppLocalizations.of(context)!.failedToLoadTrips,
                                     textAlign: TextAlign.center,
                                     style: GoogleFonts.dmSans(
                                       color:
@@ -850,7 +867,7 @@ class _TripsScreenState extends State<TripsScreen> {
                                     const SizedBox(height: 80),
                                     Center(
                                       child: Text(
-                                        'No trips found',
+                                        AppLocalizations.of(context)!.noTripsFound,
                                         style: GoogleFonts.dmSans(
                                           color: TruxifyColors
                                               .adaptiveSecondaryText(context),
@@ -901,12 +918,12 @@ class _TripsScreenState extends State<TripsScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: TruxifyColors.accent,
               ),
-              child: const Text('Mark Current Stop Completed'),
+              child: Text(AppLocalizations.of(context)!.markCurrentStopCompleted),
             ),
           ),
         const SizedBox(height: 10),
-        Text(
-          'Delivery Stops',
+          Text(
+          AppLocalizations.of(context)!.deliveryStops,
           style: GoogleFonts.dmSans(
             fontSize: 12,
             fontWeight: FontWeight.bold,
@@ -944,17 +961,17 @@ class _TripsScreenState extends State<TripsScreen> {
       case TripStatusType.active:
         statusColor = TruxifyColors.accent;
         statusBgColor = TruxifyColors.accentLight;
-        statusLabel = 'Active';
+        statusLabel = AppLocalizations.of(context)!.activeStatus;
         break;
       case TripStatusType.completed:
         statusColor = TruxifyColors.success;
         statusBgColor = TruxifyColors.successLight;
-        statusLabel = 'Completed';
+        statusLabel = AppLocalizations.of(context)!.completedStatus;
         break;
       case TripStatusType.cancelled:
         statusColor = TruxifyColors.errorRed;
         statusBgColor = TruxifyColors.errorLight;
-        statusLabel = 'Cancelled';
+        statusLabel = AppLocalizations.of(context)!.cancelledStatus;
         break;
     }
 
@@ -1247,9 +1264,9 @@ class _TopTabToggle extends StatelessWidget {
 
     return Row(
       children: [
-        chip('Trips', 0),
+        chip(AppLocalizations.of(context)!.trips, 0),
         const SizedBox(width: 8),
-        chip('Loads', 1),
+        chip(AppLocalizations.of(context)!.marketplace, 1),
       ],
     );
   }
@@ -1294,12 +1311,12 @@ class _MarketplaceBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Could not load marketplace',
+                Text(AppLocalizations.of(context)!.couldNotLoadMarketplace,
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Text(error!, style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 14),
-                Text('Could not load marketplace. Pull down to retry.',
+                Text(AppLocalizations.of(context)!.couldNotLoadMarketplace,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                     )),
@@ -1316,7 +1333,7 @@ class _MarketplaceBody extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: const [
           SizedBox(height: 80),
-          Center(child: Text('No loads available right now. Pull to refresh.')),
+          Center(child: Text(AppLocalizations.of(context)!.noLoadsAvailable)),
         ],
       );
     }
@@ -1326,9 +1343,9 @@ class _MarketplaceBody extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
       children: [
         if (enRouteLoads.isNotEmpty) ...[
-          const SectionHeader(
-            title: 'En-route opportunities',
-            subtitle: 'Pick up nearby loads with minimal detours',
+          SectionHeader(
+            title: AppLocalizations.of(context)!.enRouteOpportunities,
+            subtitle: AppLocalizations.of(context)!.pickupNearbyLoads,
           ),
           const SizedBox(height: 10),
           ...enRouteLoads.map(
@@ -1342,9 +1359,9 @@ class _MarketplaceBody extends StatelessWidget {
           const SizedBox(height: 16),
         ],
         if (standardLoads.isNotEmpty) ...[
-          const SectionHeader(
-            title: 'Marketplace loads',
-            subtitle: 'Available loads you can bid for',
+          SectionHeader(
+            title: AppLocalizations.of(context)!.marketplaceLoads,
+            subtitle: AppLocalizations.of(context)!.availableLoadsYouCanBidFor,
           ),
           const SizedBox(height: 10),
           ...standardLoads.map(

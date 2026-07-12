@@ -8,6 +8,7 @@ import '../controllers/app_controller.dart';
 import '../core/app_routes.dart';
 import '../core/config.dart';
 import '../data/mock_data.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -175,7 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const BottomSheetHandle(),
               const SizedBox(height: 16),
               Text(
-                'Edit Profile',
+                AppLocalizations.of(context)!.editProfile,
                 style: GoogleFonts.dmSans(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -193,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     fontSize: 14,
                     color: Theme.of(context).colorScheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: 'Full Name',
+                  labelText: AppLocalizations.of(context)!.fullNames,
                   labelStyle: GoogleFonts.dmSans(
                       color: TruxifyColors.adaptiveSecondaryText(context)),
                   border: OutlineInputBorder(
@@ -215,7 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     fontSize: 14,
                     color: Theme.of(context).colorScheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: 'Phone Number',
+                  labelText: AppLocalizations.of(context)!.phoneNumbers,
                   labelStyle: GoogleFonts.dmSans(
                       color: TruxifyColors.adaptiveSecondaryText(context)),
                   border: OutlineInputBorder(
@@ -238,7 +239,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     fontSize: 14,
                     color: Theme.of(context).colorScheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: 'Email Address',
+                  labelText: AppLocalizations.of(context)!.emailAddress,
                   labelStyle: GoogleFonts.dmSans(
                       color: TruxifyColors.adaptiveSecondaryText(context)),
                   border: OutlineInputBorder(
@@ -261,7 +262,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           fontSize: 14,
                           color: Theme.of(context).colorScheme.onSurface),
                       decoration: InputDecoration(
-                        labelText: 'Vehicle Registration Number',
+                        labelText: AppLocalizations.of(context)!.vehicleRegistrationNumber,
                         hintText: 'e.g., DL01AA1234',
                         labelStyle: GoogleFonts.dmSans(
                             color: TruxifyColors.adaptiveSecondaryText(context)),
@@ -288,7 +289,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 20),
               PrimaryButton(
-                label: 'Save Changes',
+                label: AppLocalizations.of(context)!.saveChanges,
                 onPressed: () {
                   if (formKey.currentState?.validate() ?? false) {
                     setState(() {
@@ -299,8 +300,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     });
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Profile updated successfully'),
+                    SnackBar(
+                      content: Text(AppLocalizations.of(context)!.profileUpdatedSuccessfully),
                       backgroundColor: TruxifyColors.success,
                     ),
                   );
@@ -335,7 +336,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const BottomSheetHandle(),
                   const SizedBox(height: 16),
                   Text(
-                    'Select Language',
+                    AppLocalizations.of(context)!.selectLanguage,
                     style: GoogleFonts.dmSans(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -387,7 +388,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   }),
                   const SizedBox(height: 16),
                   PrimaryButton(
-                    label: 'Apply Language',
+                    label: AppLocalizations.of(context)!.applyLanguage,
                     onPressed: () {
                       setState(() {
                         _currentLanguage = selectedLang;
@@ -396,7 +397,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content:
-                              Text('Language switched to $_currentLanguage'),
+                              Text(AppLocalizations.of(context)!.languageSwitched),
                           backgroundColor: TruxifyColors.success,
                         ),
                       );
@@ -432,7 +433,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const BottomSheetHandle(),
               const SizedBox(height: 16),
               Text(
-                'Polygon Wallet Address',
+                AppLocalizations.of(context)!.polygonWalletAddress,
                 style: GoogleFonts.dmSans(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -491,7 +492,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 20),
               PrimaryButton(
-                label: 'Save Wallet Address',
+                label: AppLocalizations.of(context)!.saveWalletAddress,
                 onPressed: () async {
                   final address = walletController.text.trim();
                   if (address.isEmpty) return;
@@ -515,9 +516,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       if (!context.mounted) return;
                       Navigator.of(context).pop();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content:
-                              Text('Wallet address updated successfully'),
+                              Text(AppLocalizations.of(context)!.walletAddressUpdated),
                           backgroundColor: TruxifyColors.success,
                         ),
                       );
@@ -528,7 +529,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(body['error']?.toString() ??
-                                'Failed to update wallet'),
+                                AppLocalizations.of(context)!.failedToUpdateWallet),
                             backgroundColor: TruxifyColors.errorRed,
                           ),
                         );
@@ -571,7 +572,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const BottomSheetHandle(),
               const SizedBox(height: 16),
               Text(
-                'Help & Support',
+                AppLocalizations.of(context)!.helpSupport,
                 style: GoogleFonts.dmSans(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -581,8 +582,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 16),
               _buildHelpOption(
                 icon: Icons.help_outline_rounded,
-                title: 'Browse FAQs',
-                subtitle: 'Instant answers to common driver questions',
+                title: AppLocalizations.of(context)!.browseFAQs,
+                subtitle: AppLocalizations.of(context)!.instantAnswers,
                 color: TruxifyColors.hintText,
                 onTap: () {
                   Navigator.pop(context);
@@ -690,7 +691,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Truxify Driver App',
+                AppLocalizations.of(context)!.aboutTruxifyDriverApp,
                 style: GoogleFonts.dmSans(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -706,7 +707,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Truxify is a driver-first freight marketplace designed to empower drivers with transparent pricing, instant blockchain receipts, and direct loading solutions.',
+                AppLocalizations.of(context)!.truxifyDescription,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.dmSans(
                   fontSize: 13,
@@ -716,7 +717,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 20),
               PrimaryButton(
-                label: 'Close',
+                label: AppLocalizations.of(context)!.close,
                 onPressed: () => Navigator.pop(context),
               ),
             ],
@@ -828,7 +829,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 IconButton(
                   onPressed: () => _showEditProfileSheet(context),
                   icon: const Icon(Icons.edit_rounded, color: Colors.white),
-                  tooltip: 'Edit Profile',
+                  tooltip: AppLocalizations.of(context)!.editProfile,
                 ),
               ],
             ),
@@ -959,7 +960,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   title: Text(
-                    'Documents',
+                    AppLocalizations.of(context)!.documents,
                     style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -967,7 +968,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    'Driver license, permit, and vehicle papers',
+                    AppLocalizations.of(context)!.driverLicensePermitPapers,
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       color: TruxifyColors.adaptiveSecondaryText(context),
@@ -990,7 +991,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   title: Text(
-                    'Notifications',
+                    AppLocalizations.of(context)!.notifications,
                     style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -998,7 +999,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    'View trip alerts and updates',
+                    AppLocalizations.of(context)!.viewTripAlerts,
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       color: TruxifyColors.adaptiveSecondaryText(context),
@@ -1020,7 +1021,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   title: Text(
-                    'Wallet Address',
+                    AppLocalizations.of(context)!.walletAddress,
                     style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -1030,7 +1031,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   subtitle: Text(
                     _walletAddress.isNotEmpty
                         ? '${_walletAddress.substring(0, 10)}...${_walletAddress.substring(_walletAddress.length - 6)}'
-                        : 'Not set',
+                        : AppLocalizations.of(context)!.notSet,
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       color: TruxifyColors.adaptiveSecondaryText(context),
@@ -1048,7 +1049,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   title: Text(
-                    'Language',
+                    AppLocalizations.of(context)!.languageLabel,
                     style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -1074,7 +1075,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   title: Text(
-                    'Help & Support',
+                    AppLocalizations.of(context)!.helpAndSupport247,
                     style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -1082,7 +1083,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    '24/7 hotline, chat assistant, and FAQs',
+                    AppLocalizations.of(context)!.helpSupport,
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       color: TruxifyColors.adaptiveSecondaryText(context),
@@ -1100,7 +1101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   title: Text(
-                    'About Truxify',
+                    AppLocalizations.of(context)!.aboutTruxifyDriverApp,
                     style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -1108,7 +1109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    'Version and application info',
+                    AppLocalizations.of(context)!.versionAndAppInfo,
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       color: TruxifyColors.adaptiveSecondaryText(context),
@@ -1172,7 +1173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Logout failed: $e')),
+                    SnackBar(content: Text(AppLocalizations.of(context)!.logoutFailed)),
                   );
                 }
               }
@@ -1182,7 +1183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const Icon(Icons.logout_rounded, color: TruxifyColors.error),
                 const SizedBox(width: 12),
                 Text(
-                  'Logout',
+                  AppLocalizations.of(context)!.logout,
                   style: GoogleFonts.dmSans(
                     fontSize: 14,
                     color: TruxifyColors.error,
@@ -1208,7 +1209,7 @@ class _DriverHelpScreen extends StatelessWidget {
       userId: userId,
       faqRepository: FaqRepository(client),
       supportRepository: SupportRepository(client),
-      title: 'Help & Support',
+      title: AppLocalizations.of(context)!.helpSupport,
     );
   }
 }
