@@ -139,11 +139,40 @@ class WebRTCSignalingServer {
     }
   }
 
+  isValidLocation(location) {
+    const lat = Number(location?.lat);
+    const lng = Number(location?.lng);
+    return Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lng >= -180 &&
+      lng <= 180;
+  }
+
+  normalizeLocation(location) {
+    return {
+      ...location,
+      lat: Number(location.lat),
+      lng: Number(location.lng)
+    };
+  }
+
   async handleGPSData(peerId, data) {
+    if (!data || typeof data !== 'object' || !this.isValidLocation(data.location)) {
+      logger.warn(`Invalid WebRTC GPS payload dropped for peer ${peerId}`);
+      return;
+    }
+
+    const normalizedData = {
+      ...data,
+      location: this.normalizeLocation(data.location)
+    };
+
     // Store GPS data in MongoDB with offline sync flag
     const gpsEntry = {
       peerId,
-      data,
+      data: normalizedData,
       timestamp: Date.now(),
       synced: false
     };
@@ -156,11 +185,11 @@ class WebRTCSignalingServer {
     await this.redis.setex(
       `gps:${peerId}:latest`,
       300,
-      JSON.stringify(data)
+      JSON.stringify(normalizedData)
     );
 
     // Relayed to peers in mesh
-    await this.relayLocation(peerId, data.location);
+    await this.relayLocation(peerId, normalizedData.location);
   }
 
   async handleDisconnect(peerId) {
