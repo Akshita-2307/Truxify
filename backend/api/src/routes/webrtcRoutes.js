@@ -1,5 +1,8 @@
 import express from 'express';
 import { getWebRTCSignaling } from '../sockets/webrtc.js';
+import { authenticate } from '../middleware/auth.js';
+import { requirePolicy } from '../middleware/requirePolicy.js';
+import { userLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -18,7 +21,7 @@ function isLongitude(value) {
 }
 
 // Get WebRTC stats
-router.get('/webrtc/stats', (req, res) => {
+router.get('/webrtc/stats', authenticate, userLimiter, requirePolicy('webrtc:view-stats'), (req, res) => {
   const signaling = getWebRTCSignaling();
   if (!signaling) {
     return res.status(503).json({
@@ -33,7 +36,7 @@ router.get('/webrtc/stats', (req, res) => {
 });
 
 // Get nearby peers
-router.get('/webrtc/nearby', async (req, res) => {
+router.get('/webrtc/nearby', authenticate, userLimiter, requirePolicy('webrtc:view-nearby'), async (req, res) => {
   try {
     const { lat, lng, radius } = req.query;
     const parsedLat = parseFiniteNumber(lat);
@@ -89,7 +92,7 @@ router.get('/webrtc/nearby', async (req, res) => {
 });
 
 // Get offline GPS data
-router.get('/webrtc/offline/:peerId', async (req, res) => {
+router.get('/webrtc/offline/:peerId', authenticate, userLimiter, requirePolicy('webrtc:view-offline'), async (req, res) => {
   try {
     const { peerId } = req.params;
     const { since } = req.query;
@@ -116,7 +119,7 @@ router.get('/webrtc/offline/:peerId', async (req, res) => {
 });
 
 // Sync offline data
-router.post('/webrtc/sync/:peerId', async (req, res) => {
+router.post('/webrtc/sync/:peerId', authenticate, userLimiter, requirePolicy('webrtc:sync-offline'), async (req, res) => {
   try {
     const { peerId } = req.params;
 
