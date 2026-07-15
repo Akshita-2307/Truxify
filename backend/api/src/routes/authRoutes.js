@@ -10,8 +10,7 @@
  */
 
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
-import { userLimiter } from '../middleware/rateLimiter.js';
+import { authenticate, userLimiter } from '../middleware/auth.js';
 import { invalidateCachedProfile, invalidateCachedSupabaseProfile } from '../lib/profileCache.js';
 import { firebaseAdmin } from '../config/db.js';
 import logger from '../middleware/logger.js';
