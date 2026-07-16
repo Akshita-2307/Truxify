@@ -375,6 +375,34 @@ abstract class AppLocalizations {
   String get failedToSubmitBid;
 
   String get thisLoadIsMissingId;
+
+  String get recommendedReturnLoads;
+
+  String get recommendedForYou;
+
+  String get matchScore;
+
+  String get bestMatch;
+
+  String get noRecommendations;
+
+  String get couldNotLoadRecommendations;
+
+  String get noActiveTripForRecommendations;
+
+  String get detourDistance;
+
+  String get bidOnLoad;
+
+  String get updateBid;
+
+  String get placeYourBid;
+
+  String get bidAmount;
+
+  String get submitBid;
+
+  String get enterValidBid;
 }
 
 class _AppLocalizationsDelegate
