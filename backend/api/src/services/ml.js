@@ -129,6 +129,28 @@ export async function predictPrice({
 
   const raw = await handleResponse(response);
 
+  const validated = validatePricePrediction(raw);
+  if (!validated.ok) {
+      logger.warn({
+          reason: validated.reason,
+          detail: validated.detail,
+          response_keys: raw && typeof raw === 'object' ? Object.keys(raw) : typeof raw,
+      }, '[ML] Price prediction rejected by validator');
+      throw new Error(`[ML] Invalid prediction: ${validated.reason} — ${validated.detail}`);
+  }
+
+  logger.debug({
+      estimated_price_inr: validated.validated.estimated_price,
+      confidence: validated.validated.confidence,
+  }, '[ML] Price prediction validated successfully');
+
+  const result = {
+      ...validated.validated,
+      estimatedPricePaisa: convertToPaisa(validated.validated.estimated_price),
+      estimatedPriceInr: validated.validated.estimated_price,
+  };
+  priceCache.set(cacheKey, result);
+  return result;
   const result = validatePricePrediction(raw);
   if (!result.ok) {
       logger.warn({
