@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import '../core/api_client.dart';
 import '../services/order_service.dart';
 import '../services/tracking_service.dart';
 import '../services/voice_ai_service.dart';
@@ -34,7 +35,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
   List<Map<String, dynamic>> _timeline = [];
   Map<String, dynamic>? _order;
   RealtimeChannel? _ordersChannel;
-  List<LatLng> _routePoints = const [_fallbackPickupPoint, _fallbackDropPoint];
+  List<LatLng> _routePoints = const [];
 
   static const String _loadingDriverText = 'Loading driver...';
   static const String _loadingTruckText = 'Loading truck...';
@@ -102,7 +103,7 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
   }
 
   void _subscribeToTracking() {
-    final apiBaseUrl = OrderService.defaultApiBaseUrl;
+    final apiBaseUrl = ApiClient.defaultBaseUrl;
     final baseUri = Uri.parse(apiBaseUrl);
     final wsScheme = baseUri.scheme == 'https' ? 'wss' : 'ws';
     
@@ -113,17 +114,21 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
     wsPath = '$wsPath/ws/tracking';
 
     String buildUrl() {
+      final session = Supabase.instance.client.auth.currentSession;
+      final token = session?.accessToken ?? '';
       final wsUri = Uri(
         scheme: wsScheme,
         host: baseUri.host,
         port: baseUri.hasPort ? baseUri.port : null,
         path: wsPath,
+        queryParameters: token.isNotEmpty ? {'token': token} : null,
       );
       return wsUri.toString();
     }
 
     final initialWsUrl = buildUrl();
-    debugPrint('Connecting to tracking WebSocket at: $initialWsUrl');
+    final redactedUrl = initialWsUrl.replaceAll(RegExp(r'token=[^&]+'), 'token=[REDACTED]');
+    debugPrint('Connecting to tracking WebSocket at: $redactedUrl');
 
     _trackingWebSocket = ResilientWebSocket(
       initialWsUrl,
@@ -870,22 +875,25 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen>
                     AnimatedBuilder(
                       animation: _movementController,
                       builder: (context, _) {
+                        if (_routePoints.isEmpty) return const SizedBox.shrink();
                         return MarkerLayer(
                           markers: [
-                            Marker(
-                              point: _routePoints.first,
-                              width: 30,
-                              height: 30,
-                              child: const Icon(Icons.trip_origin_rounded,
-                                  color: Colors.blue, size: 22),
-                            ),
-                            Marker(
-                              point: _routePoints.last,
-                              width: 34,
-                              height: 34,
-                              child: const Icon(Icons.place_rounded,
-                                  color: Colors.redAccent, size: 26),
-                            ),
+                            if (_routePoints.isNotEmpty) ...[
+                              Marker(
+                                point: _routePoints.first,
+                                width: 30,
+                                height: 30,
+                                child: const Icon(Icons.trip_origin_rounded,
+                                    color: Colors.blue, size: 22),
+                              ),
+                              Marker(
+                                point: _routePoints.last,
+                                width: 34,
+                                height: 34,
+                                child: const Icon(Icons.place_rounded,
+                                    color: Colors.redAccent, size: 26),
+                              ),
+                            ],
                             ..._buildTruckMarkers(),
                           ],
                         );
