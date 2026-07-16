@@ -171,6 +171,11 @@ router.get('/load-offers', authenticate, userLimiter, async (req, res) => {
     );
 
     if (error) return res.status(500).json({ error: 'Failed to fetch load offers.', details: error.message });
+
+    if (redisClient) {
+      await redisClient.set(cacheKey, JSON.stringify(offers), 'EX', 120).catch(() => {});
+    }
+
     res.json(offers);
   } catch (err) {
     logger.error("[orderRoutes] Failed to fetch load offers:", err.message);
@@ -191,6 +196,11 @@ router.get('/load-offers/en-route', authenticate, userLimiter, async (req, res) 
     );
 
     if (error) return res.status(500).json({ error: 'Failed to fetch en-route loads.', details: error.message });
+
+    if (redisClient) {
+      await redisClient.set(cacheKey, JSON.stringify(offers), 'EX', 120).catch(() => {});
+    }
+
     res.json(offers);
   } catch (err) {
     logger.error("[orderRoutes] Failed to fetch en-route loads:", err.message);
@@ -435,13 +445,6 @@ router.get('/:id/bids', authenticate, userLimiter, requirePolicy('order:view-bid
 // ============================================================================
 // 11. ACCEPT BID (CUSTOMER)
 // ============================================================================
-const bidAcceptanceService = new BidAcceptanceService({
-  supabase,
-  buildDepositTxFn: buildDepositTx,
-  recordDepositTxFn: recordDepositTx,
-  escrowRefundFn: escrowRefund,
-  logger
-});
 
 router.post('/:id/bids/:bidId/accept', authenticate, userLimiter, requirePolicy('order:accept-bid'), requireIdempotency(86400), validateParams(acceptBidParamsSchema), async (req, res) => {
   try {
@@ -509,6 +512,7 @@ router.post('/:id/verify-delivery', authenticate, userLimiter, requirePolicy('de
 // ============================================================================
 router.post('/:id/resend-otp', authenticate, userLimiter, resendOtpLimiter, requirePolicy('delivery:resend-otp'), validateParams(paramIdSchema), async (req, res) => {
   try {
+    const orderId = req.params.id;
     const order = await orderValidationService.findOrderByIdOrDisplayId(orderId, 'id, order_display_id, driver_id, customer_id, status');
     orderValidationService.assertOrderFound(order);
     orderValidationService.assertDriverAssignment(order, req.user.id);
