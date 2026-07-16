@@ -1,6 +1,6 @@
 import express from 'express';
-import { authenticate, requireRole } from '../middleware/auth.js';
-import { userLimiter, adminRateLimiter } from '../middleware/rateLimiter.js';
+import { authenticate } from '../middleware/auth.js';
+import { userLimiter } from '../middleware/rateLimiter.js';
 import { z } from 'zod';
 import { requirePolicy } from '../middleware/requirePolicy.js';
 import { validateBody, validateQuery, validateParams } from '../middleware/validate.js';
