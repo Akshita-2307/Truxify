@@ -27,6 +27,7 @@ import authRoutes from './routes/authRoutes.js'
 import healthRoutes from './routes/healthRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import lookupRoutes from './routes/lookupRoutes.js'
+import webhookRoutes from './routes/webhookRoutes.js'
 
 // ============================================================================
 // 🆕 MULTI-PROVIDER ORACLE & VERIFICATION ROUTES
@@ -531,8 +532,8 @@ server.listen(PORT, () => {
   logger.info(`☁️ Multi-Cloud Disaster Recovery enabled (Active: ${process.env.ACTIVE_CLOUD || 'aws'})`)
 
   startEscrowRefundReconciliation(orderRepository)
-  startEscrowReleaseReconciliation()
-  startReputationReconciliation()
+  startReputationReconciliation(orderRepository)
+  startDlqWorker()
 })
 
 // ============================================================================
@@ -552,12 +553,13 @@ async function shutdown (signal) {
   }
   shuttingDown = true
 
-  logger.info(`${signal} received — draining connections...`)
+  logger.info('Received shutdown signal, initiating graceful shutdown...');
 
-  // Stop reconciliation timers so no new work starts during the drain.
-  stopEscrowRefundReconciliation()
+  // Stop background workers
   stopEscrowReleaseReconciliation()
+  stopEscrowRefundReconciliation()
   stopReputationReconciliation()
+  stopDlqWorker()
 
   const forceExit = setTimeout(() => {
     logger.error('[shutdown] Timeout exceeded — forcing exit.')
