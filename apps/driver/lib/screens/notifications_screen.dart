@@ -3,7 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:truxify_shared/truxify_shared.dart' as shared;
 
 class NotificationsScreen extends StatelessWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({super.key, this.onItemTap});
+
+  /// Called when a notification tile is tapped.
+  final ValueChanged<NotificationItem>? onItemTap;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +28,7 @@ class NotificationsScreen extends StatelessWidget {
         final route = shared.NotificationRouter.resolve(payload);
         shared.NotificationRouter.executeNavigation(context, route);
       },
+      onItemTap: onItemTap,
     );
   }
 }
