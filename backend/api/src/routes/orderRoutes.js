@@ -2,7 +2,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 
 import { bidLimiter, userLimiter, safeIpKeyGenerator, createStore } from '../middleware/rateLimiter.js';
-import { redisClient, mongoDb, supabase } from '../config/db.js';
+import { redisClient, mongoDb, supabase, createUserClient } from '../config/db.js';
 import { OrderRepository } from '../repositories/orderRepository.js';
 import { authenticate } from '../middleware/auth.js';
 import { requirePolicy } from '../middleware/requirePolicy.js';
@@ -578,7 +578,7 @@ router.post('/:id/ratings', authenticate, userLimiter, requirePolicy('order:subm
       p_driver_id: order.driver_id,
       p_stars: stars,
       p_comment: comment,
-    });
+    }, req.token ? createUserClient(req.token) : undefined);
 
     if (rpcErr) {
       return res.status(500).json({ error: 'Failed to submit rating.', details: rpcErr.message });
