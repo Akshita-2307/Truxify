@@ -27,7 +27,6 @@ from app.models.demand_forecast import MODEL_NAME as DEMAND_MODEL_NAME
 from app.models.price_prediction import MODEL_NAME as PRICE_MODEL_NAME
 from fastapi import FastAPI
 from routes import federated_routes  # Add this
-import os
 
 app = FastAPI(title="Truxify ML Engine")
 
