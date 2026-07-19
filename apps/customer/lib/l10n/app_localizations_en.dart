@@ -415,4 +415,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get failedToUpdateProfile => 'Failed to update profile';
+
+  @override
+  String get orderNotFound => 'Order not found';
+
+  @override
+  String get notification => 'Notification';
+
+  @override
+  String get unableToOpen => 'Unable to open notification';
+  String get downloadInvoice => 'Download Invoice';
+
+  @override
+  String get generatingInvoice => 'Generating Invoice...';
+
+  @override
+  String get invoiceReady => 'Invoice ready';
+
+  @override
+  String get shareInvoice => 'Share Invoice';
+
+  @override
+  String get printInvoice => 'Print Invoice';
+
+  @override
+  String get downloadFailed => 'Download failed';
 }

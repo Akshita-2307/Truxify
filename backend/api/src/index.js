@@ -22,12 +22,13 @@ import driverRoutes from './routes/driverRoutes.js'
 import supportRoutes from './routes/supportRoutes.js'
 import profileRoutes from './routes/profileRoutes.js'
 import loadRoutes from './routes/loadRoutes.js'
+import deadheadRoutes from './routes/deadheadRoutes.js'
 import truckRoutes from './routes/truckRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import healthRoutes from './routes/healthRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import lookupRoutes from './routes/lookupRoutes.js'
-import demandRoutes from './routes/demandRoutes.js'
+import webhookRoutes from './routes/webhookRoutes.js'
 
 // ============================================================================
 // 🆕 MULTI-PROVIDER ORACLE & VERIFICATION ROUTES
@@ -38,8 +39,11 @@ import oracleRoutes from './routes/oracleRoutes.js'
 // ============================================================================
 // 🆕 GEOGRAPHIC SHARDING ROUTES
 // ============================================================================
+import trackingRoutes from './routes/trackingRoutes.js'
+import publicTrackingRoutes from './routes/publicTrackingRoutes.js'
 import shardRoutes from './routes/shardRoutes.js'
 import shardManager from './services/sharding/ShardManager.js'
+
 
 // ============================================================================
 // 🆕 WEBRTC P2P MESH NETWORK ROUTES
@@ -52,6 +56,7 @@ import { initWebRTCSignaling, closeWebRTCSignaling } from './sockets/webrtc.js'
 // ============================================================================
 import fraudRoutes from './routes/fraudRoutes.js'
 import { fraudDetectionMiddleware, networkAnalysisMiddleware } from './middleware/fraudMiddleware.js'
+import fraudDetection from './services/fraud/FraudDetectionService.js'
 
 // ============================================================================
 // 🆕 ZK-PROOFS FOR DRIVER KYC
@@ -87,6 +92,10 @@ import {
   startReputationReconciliation,
   stopReputationReconciliation,
 } from './services/reputationReconciliation.js'
+import {
+  startDocumentExpiryWorker,
+  stopDocumentExpiryWorker,
+} from './services/documentExpiryService.js'
 import './subscribers/reputationSubscriber.js'
 
 // Configuration load from root folder is handled in db.js
@@ -150,6 +159,7 @@ if (!process.env.SHARD_NORTH_HOST || !process.env.SHARD_SOUTH_HOST ||
   logger.warn('⚠️ Shard hosts not fully configured. Using localhost defaults.')
 }
 
+
 // ============================================================================
 // 🆕 WEBRTC VALIDATION
 // ============================================================================
@@ -167,6 +177,7 @@ if (!process.env.BEHAVIORAL_ANALYTICS_ENABLED) {
   logger.info('Behavioral analytics enabled by default')
 }
 
+
 // ============================================================================
 // 🆕 ZK-PROOFS VALIDATION
 // ============================================================================
@@ -176,6 +187,7 @@ if (!process.env.KYC_VERIFIER_CONTRACT) {
 if (!process.env.PRIVATE_KEY) {
   logger.warn('⚠️ PRIVATE_KEY not set. Cannot sign ZK proof transactions.')
 }
+
 
 
 // ============================================================================
@@ -193,6 +205,7 @@ if (!process.env.GCP_PROJECT_ID) {
 if (!process.env.ACTIVE_CLOUD) {
   logger.warn('⚠️ ACTIVE_CLOUD not set. Using default: aws')
 }
+
 
 // Validate escrow contract deployment — log warning if validation fails,
 // but don't crash (non-escrow functionality should still work).
@@ -327,6 +340,8 @@ app.use('/api', requestCacheMiddleware)
 // REST API ROUTING
 // ============================================================================
 app.use('/api/orders', orderRoutes)
+app.use('/api/driver', deadheadRoutes)
+app.use('/api/orders', trackingRoutes)
 app.use('/api/driver', driverRoutes)
 app.use('/api/loads', loadRoutes)
 app.use('/api/support', supportRoutes)
@@ -335,6 +350,7 @@ app.use('/api/devices', deviceRoutes)
 app.use('/api/driver/documents', documentRoutes)
 app.use('/api/trucks', truckRoutes)
 app.use('/api/v1', lookupRoutes)
+app.use('/api/public', publicTrackingRoutes)
 app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/v1/admin', adminRoutes)
 
@@ -382,6 +398,7 @@ app.get('/api/shard/health', async (req, res) => {
   }
 })
 
+
 // ============================================================================
 // 🆕 WEBRTC P2P MESH NETWORK ROUTES
 // ============================================================================
@@ -415,6 +432,7 @@ app.get('/api/fraud/health', (req, res) => {
   })
 })
 
+
 // ============================================================================
 // 🆕 ZK-PROOFS FOR DRIVER KYC ROUTES
 // ============================================================================
@@ -430,6 +448,7 @@ app.get('/api/zkp/health', (req, res) => {
     timestamp: new Date().toISOString()
   })
 })
+
 
 
 // ============================================================================
@@ -525,15 +544,21 @@ server.listen(PORT, () => {
   logger.info(`🆕 Oracle Service enabled with threshold: ${process.env.ORACLE_CONSENSUS_THRESHOLD || 2}`)
   logger.info(`🆕 Verification endpoints available at /api/verify and /api/oracle`)
   logger.info(`🆕 Geographic Sharding enabled with 4 shards (North, South, East, West)`)
+
   logger.info(`🆕 WebRTC P2P Mesh Network available at ws://localhost:${PORT}/webrtc`)
   logger.info(`🆕 Fraud Detection enabled with threshold: ${process.env.FRAUD_THRESHOLD || 0.7}`)
+
   logger.info(`🆕 ZK-Proof KYC Verification enabled with contract: ${process.env.KYC_VERIFIER_CONTRACT || 'not-deployed'}`)
 
   logger.info(`☁️ Multi-Cloud Disaster Recovery enabled (Active: ${process.env.ACTIVE_CLOUD || 'aws'})`)
 
+
+  logger.info(`☁️ Multi-Cloud Disaster Recovery enabled (Active: ${process.env.ACTIVE_CLOUD || 'aws'})`)
+
   startEscrowRefundReconciliation(orderRepository)
-  startEscrowReleaseReconciliation()
-  startReputationReconciliation()
+  startReputationReconciliation(orderRepository)
+  startDlqWorker()
+  startDocumentExpiryWorker()
 })
 
 // ============================================================================
@@ -553,12 +578,15 @@ async function shutdown (signal) {
   }
   shuttingDown = true
 
-  logger.info(`${signal} received — draining connections...`)
+  logger.info('Received shutdown signal, initiating graceful shutdown...');
 
-  // Stop reconciliation timers so no new work starts during the drain.
-  stopEscrowRefundReconciliation()
+  // Stop background workers
   stopEscrowReleaseReconciliation()
+  stopEscrowRefundReconciliation()
   stopReputationReconciliation()
+  stopDlqWorker()
+  stopDocumentExpiryWorker()
+  fraudDetection.destroy()
 
   const forceExit = setTimeout(() => {
     logger.error('[shutdown] Timeout exceeded — forcing exit.')
@@ -580,6 +608,12 @@ async function shutdown (signal) {
     await closeLocationServer()
     logger.info('[shutdown] WebSocket resources closed.')
 
+    // 3. Close shard connections
+    await shardManager.closeAllConnections()
+    logger.info('[shutdown] Shard connections closed.')
+
+    // 4. Close database/cache connections
+
     // 3. Close WebRTC signaling server
     await closeWebRTCSignaling()
     logger.info('[shutdown] WebRTC signaling server closed.')
@@ -588,11 +622,16 @@ async function shutdown (signal) {
     await shardManager.closeAllConnections()
     logger.info('[shutdown] Shard connections closed.')
 
+
+    // 5. Close database/cache connections
+
+
     // 5. Close OpenTelemetry tracing
     await tracing.shutdown()
     logger.info('[shutdown] OpenTelemetry tracing shut down.')
 
     // 6. Close database/cache connections
+
     await closeDbConnections()
 
     logger.info('[shutdown] Clean exit.')

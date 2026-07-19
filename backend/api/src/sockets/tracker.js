@@ -329,11 +329,13 @@ export function initWebSocketServer(server, orderRepository) {
 
     if (bypassAuth) {
       if (process.env.NODE_ENV === 'production') {
+        ws.send(JSON.stringify({ error: 'BYPASS_AUTH is not allowed in production', code: 4003 }));
         ws.close(4003, 'BYPASS_AUTH is not allowed in production');
         return;
       }
       const devToken = reqUrl.searchParams.get('dev_access_token');
       if (!devToken || !process.env.DEV_ACCESS_TOKEN || devToken !== process.env.DEV_ACCESS_TOKEN) {
+        ws.send(JSON.stringify({ error: 'Unauthorized: Missing or invalid dev_access_token', code: 4001 }));
         ws.close(4001, 'Unauthorized: Missing or invalid dev_access_token');
         return;
       }
@@ -345,6 +347,7 @@ export function initWebSocketServer(server, orderRepository) {
       logger.warn({ event: 'WS_BYPASS_AUTH_USED', driverId: ws.driverId, role: ws.user.role }, 'WS Auth bypassed via DEV_ACCESS_TOKEN');
     } else {
       if (!token) {
+        ws.send(JSON.stringify({ error: 'Unauthorized: No token provided', code: 4001 }));
         ws.close(4001, 'Unauthorized: No token provided');
         return;
       }
@@ -364,6 +367,7 @@ export function initWebSocketServer(server, orderRepository) {
 
         if (isSupabaseToken) {
           if (!supabase) {
+            ws.send(JSON.stringify({ error: 'Unauthorized: Supabase client is not configured', code: 4001 }));
             ws.close(4001, 'Unauthorized: Supabase client is not configured');
             return;
           }
@@ -371,6 +375,7 @@ export function initWebSocketServer(server, orderRepository) {
           const user = response?.data?.user;
           const authError = response?.error;
           if (authError || !user) {
+            ws.send(JSON.stringify({ error: 'Unauthorized: Invalid or expired Supabase token', code: 4001 }));
             ws.close(4001, 'Unauthorized: Invalid or expired Supabase token');
             return;
           }
@@ -383,6 +388,7 @@ export function initWebSocketServer(server, orderRepository) {
             .maybeSingle();
 
           if (error || !userProfile) {
+            ws.send(JSON.stringify({ error: 'Unauthorized: User profile not found', code: 4001 }));
             ws.close(4001, 'Unauthorized: User profile not found');
             return;
           }
@@ -390,11 +396,13 @@ export function initWebSocketServer(server, orderRepository) {
         } else {
           // Firebase Verification
           if (!firebaseAdmin) {
+            ws.send(JSON.stringify({ error: 'Unauthorized: Firebase Auth is not configured', code: 4001 }));
             ws.close(4001, 'Unauthorized: Firebase Auth is not configured');
             return;
           }
           const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
           if (!supabase) {
+            ws.send(JSON.stringify({ error: 'Unauthorized: Profile lookup is not configured', code: 4001 }));
             ws.close(4001, 'Unauthorized: Profile lookup is not configured');
             return;
           }
@@ -407,6 +415,7 @@ export function initWebSocketServer(server, orderRepository) {
             .maybeSingle();
 
           if (error || !userProfile) {
+            ws.send(JSON.stringify({ error: 'Unauthorized: User profile not found', code: 4001 }));
             ws.close(4001, 'Unauthorized: User profile not found');
             return;
           }
@@ -423,6 +432,7 @@ export function initWebSocketServer(server, orderRepository) {
         logger.info(`✅ WS Authenticated user: ${ws.user.id}`);
       } catch (err) {
         logger.error({ err }, 'WS Auth failed');
+        ws.send(JSON.stringify({ error: 'Unauthorized: Invalid token', code: 4001 }));
         ws.close(4001, 'Unauthorized: Invalid token');
         return;
       }
@@ -552,6 +562,7 @@ export async function handleLocationPing(ws, data, req) {
     }, 'Location spoofing attempt detected: Driver ID mismatch');
 
     if (typeof ws.close === 'function') {
+      ws.send(JSON.stringify({ error: 'Spoofed location detected: Driver ID mismatch', code: 4010 }));
       ws.close(4010, 'Spoofed location detected: Driver ID mismatch');
     }
     return;
@@ -849,11 +860,11 @@ async function flushTelemetryBuffer() {
         } else {
           logger.error(`[TRUXIFY VALIDATION] Bulk insert validation error: ${err.message}`);
         }
-        const succeeded = err.writeErrors
-          ? recordsToFlush.filter((_, i) => !err.writeErrors.some(e => e.index === i))
+        const failed = err.writeErrors
+          ? recordsToFlush.filter((_, i) => err.writeErrors.some(e => e.index === i))
           : [];
-        if (succeeded.length > 0) {
-          const overflowDrop = telemetryWriteBuffer.prepend(succeeded);
+        if (failed.length > 0) {
+          const overflowDrop = telemetryWriteBuffer.prepend(failed);
           if (overflowDrop > 0) {
             telemetryTotalDropped += overflowDrop;
             telemetryOverflowDropped += overflowDrop;
@@ -969,7 +980,7 @@ export async function closeWebSocketServer() {
       const dataLoss = telemetryWriteBuffer.length;
       if (dataLoss > 0) {
         try {
-          const lines = telemetryWriteBuffer.toArray().map(r => JSON.stringify(scrubPII(r))).join('\n');
+          const lines = telemetryWriteBuffer.toArray().map(r => JSON.stringify(r)).join('\n');
           fs.writeFileSync(RECOVERY_FILE_PATH, lines + '\n', { encoding: 'utf-8', mode: 0o600 });
           logger.warn(`[TRUXIFY SHUTDOWN] MongoDB not available. Wrote ${dataLoss} telemetry records to recovery file: ${RECOVERY_FILE_PATH}`);
         } catch (fileErr) {
@@ -1193,9 +1204,9 @@ async function restoreSubscriptions(ws) {
     for (const targetId of targets) {
       const allowed = await canSubscribe(
         ws,
-        targetId.startsWith('ORDER-')
-          ? { order_display_id: targetId }
-          : { driver_id: targetId }
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId)
+          ? { driver_id: targetId }
+          : { order_display_id: targetId }
       );
 
       if (!allowed) {

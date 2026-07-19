@@ -16,6 +16,10 @@ class RouteDraft {
     this.pickupLng,
     this.dropLat,
     this.dropLng,
+    this.truckType,
+    this.minCapacity,
+    this.maxCapacity,
+    this.materialType,
   });
 
   final String pickup;
@@ -32,6 +36,10 @@ class RouteDraft {
   final double? pickupLng;
   final double? dropLat;
   final double? dropLng;
+  final String? truckType;
+  final double? minCapacity;
+  final double? maxCapacity;
+  final String? materialType;
 }
 
 class ShipmentCardData {
@@ -189,38 +197,7 @@ class HistoryOrderData {
     this.distanceCharge,
     this.tollCharge,
     this.platformFee,
-  });
-
-  final String orderId;
-  final String route;
-  final String date;
-  final String amount;
-  final String status;
-  final String driver;
-  final String truckNumber;
-  final List<TimelineStepData> timeline;
-  final String? blockchainTxHash;
-  final String? baseFare;
-  final String? distanceCharge;
-  final String? tollCharge;
-  final String? platformFee;
-}
-
-class HistoryOrderData {
-  const HistoryOrderData({
-    required this.orderId,
-    required this.route,
-    required this.date,
-    required this.amount,
-    required this.status,
-    required this.driver,
-    required this.truckNumber,
-    required this.timeline,
-    this.blockchainTxHash,
-    this.baseFare,
-    this.distanceCharge,
-    this.tollCharge,
-    this.platformFee,
+    this.driverPhone,
     this.goodsType,
     this.weightTonnes,
     this.dimensions,
@@ -242,6 +219,7 @@ class HistoryOrderData {
   final String? distanceCharge;
   final String? tollCharge;
   final String? platformFee;
+  final String? driverPhone;
   final String? goodsType;
   final String? weightTonnes;
   final String? dimensions;

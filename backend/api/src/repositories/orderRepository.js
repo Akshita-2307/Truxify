@@ -1,3 +1,4 @@
+import { getRequestCache } from '../lib/requestContext.js';
 import { executeWithRetry, isRetryable } from '../core/retry.js';
 import { measureExecution } from '../core/performanceMetrics.js';
 import { buildPagination } from '../utils/pagination.js';
@@ -370,8 +371,9 @@ export class OrderRepository {
   // RPC
   // ===================================================================
 
-  async executeRpc(name, params) {
-    return this._retryableQuery(() => this.supabase.rpc(name, params), `executeRpc:${name}`);
+  async executeRpc(name, params, client) {
+    const supabaseClient = client || this.supabase;
+    return this._retryableQuery(() => supabaseClient.rpc(name, params), `executeRpc:${name}`);
   }
 
   // ===================================================================
@@ -552,8 +554,9 @@ export class OrderRepository {
       .limit(50), 'findPendingEscrowRefunds');
   }
 
-  async claimRefundReconciliation(orderId, instanceId) {
-    return this._retryableQuery(() => this.supabase
+  async claimRefundReconciliation(orderId, instanceId, client) {
+    const supabaseClient = client || this.supabase;
+    return this._retryableQuery(() => supabaseClient
       .rpc('claim_refund_reconciliation', {
         p_order_id: orderId,
         p_instance_id: instanceId,

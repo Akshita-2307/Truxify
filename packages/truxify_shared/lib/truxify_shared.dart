@@ -8,10 +8,13 @@ export 'src/config/supabase_config.dart';
 export 'src/services/api_client.dart';
 export 'src/services/auth_service.dart';
 export 'src/services/fcm_service.dart';
+export 'src/services/notification_router.dart';
+export 'src/services/foreground_notification_handler.dart';
 
 // ── Models ──────────────────────────────────────────────────────────
 export 'src/models/faq.dart';
 export 'src/models/notification_item.dart';
+export 'src/models/notification_payload.dart';
 export 'src/models/support_ticket.dart';
 
 // ── Repositories ────────────────────────────────────────────────────

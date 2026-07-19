@@ -375,6 +375,54 @@ abstract class AppLocalizations {
   String get failedToSubmitBid;
 
   String get thisLoadIsMissingId;
+
+  String get recommendedReturnLoads;
+
+  String get recommendedForYou;
+
+  String get matchScore;
+
+  String get bestMatch;
+
+  String get noRecommendations;
+
+  String get couldNotLoadRecommendations;
+
+  String get noActiveTripForRecommendations;
+
+  String get detourDistance;
+
+  String get bidOnLoad;
+
+  String get updateBid;
+
+  String get placeYourBid;
+
+  String get bidAmount;
+
+  String get submitBid;
+
+  String get enterValidBid;
+  String get unableToOpen;
+  String get withdraw;
+
+  String get withdrawFunds;
+
+  String get availableBalance;
+
+  String get enterAmount;
+
+  String get amountRequired;
+
+  String get enterValidAmount;
+
+  String get amountMustBePositive;
+
+  String get insufficientBalance;
+
+  String get max;
+
+  String get withdrawalSuccessful;
 }
 
 class _AppLocalizationsDelegate
