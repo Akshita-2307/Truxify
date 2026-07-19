@@ -440,8 +440,8 @@ router.get('/:id/timeline', authenticate, userLimiter, validateParams(paramIdSch
     if (err instanceof DomainError) {
       return res.status(err.status).json(err.payload);
     }
-    logger.error("[orderRoutes] Failed to fetch order timeline:", err.message);
-    res.status(500).json({ error: 'Internal Server Error' });
+    logger.error("[orderRoutes] Failed to fetch timeline:", err.message);
+    return res.status(500).json({ error: 'Failed to fetch timeline.' });
   }
 });
 
