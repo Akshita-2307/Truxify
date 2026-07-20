@@ -236,6 +236,7 @@ router.get('/:id/events', authenticate, userLimiter, validateParams(uuidParamSch
 
       if (existingEventErr) {
         logger.error('[TripRoutes] Failed to check existing trip events:', existingEventErr.message);
+        return res.status(500).json({ error: 'Internal Server Error' });
       }
 
       // If no events found at all, check via orders whether this trip/order exists
@@ -247,6 +248,7 @@ router.get('/:id/events', authenticate, userLimiter, validateParams(uuidParamSch
 
       if (orderErr) {
         logger.error('[TripRoutes] Failed to check order for trip:', orderErr.message);
+        return res.status(500).json({ error: 'Internal Server Error' });
       }
 
       if (!order && !existingEvent) {
