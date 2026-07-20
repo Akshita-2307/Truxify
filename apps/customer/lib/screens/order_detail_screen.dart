@@ -141,6 +141,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             distanceCharge: _formatRupeesFromPaise(orderMap['distance_charge']),
             tollCharge: _formatRupeesFromPaise(orderMap['toll_charge']),
             platformFee: _formatRupeesFromPaise(orderMap['platform_fee']),
+            requiresRefrigeration: orderMap['requires_refrigeration'] == true,
+            targetTemperatureMin: (orderMap['target_temperature_min'] as num?)?.toDouble(),
+            targetTemperatureMax: (orderMap['target_temperature_max'] as num?)?.toDouble(),
           );
           // Trigger rating flow if status becomes completed and rating dialog hasn't been shown yet
           final orderStatus = orderMap['status']?.toString() ?? '';
@@ -344,6 +347,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 const SizedBox(height: 8),
                 Text('Date: ${_currentOrder.date}', style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 8),
+                if (_currentOrder.requiresRefrigeration) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.ac_unit_rounded, size: 16, color: Colors.blue),
+                      const SizedBox(width: 4),
+                      Text('Temperature: ${_currentOrder.targetTemperatureMin ?? '?'}°C to ${_currentOrder.targetTemperatureMax ?? '?'}°C', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.blue)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 StatusBadge(
                   label: isSuccess ? '✅ ${_currentOrder.status}' : '❌ Cancelled',
                   color: isSuccess ? TruxifyColors.accentDark : TruxifyColors.error,

@@ -159,6 +159,7 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
     pickup_address, pickup_lat, pickup_lng,
     drop_address, drop_lat, drop_lng,
     goods_type, weight_tonnes,
+    requires_refrigeration, target_temperature_min, target_temperature_max,
   } = req.body;
 
   if (pickup_address && pickup_address.length > 200) {
@@ -305,6 +306,9 @@ router.post('/', authenticate, userLimiter, requireRole(['customer']), validateB
         toll_cost: pricing.tollEstimate,
         net_profit: pricing.netProfit,
         extra_distance_km: pricing.distanceKm,
+        requires_refrigeration: requires_refrigeration || false,
+        target_temperature_min: target_temperature_min || null,
+        target_temperature_max: target_temperature_max || null,
         status: 'available'
       });
 

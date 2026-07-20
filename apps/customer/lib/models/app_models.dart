@@ -15,6 +15,9 @@ class RouteDraft {
     this.pickupLng,
     this.dropLat,
     this.dropLng,
+    this.requiresRefrigeration = false,
+    this.targetTemperatureMin,
+    this.targetTemperatureMax,
   });
 
   final String pickup;
@@ -30,6 +33,9 @@ class RouteDraft {
   final double? pickupLng;
   final double? dropLat;
   final double? dropLng;
+  final bool requiresRefrigeration;
+  final double? targetTemperatureMin;
+  final double? targetTemperatureMax;
 }
 
 class ShipmentCardData {
@@ -187,6 +193,9 @@ class HistoryOrderData {
     this.distanceCharge,
     this.tollCharge,
     this.platformFee,
+    this.requiresRefrigeration = false,
+    this.targetTemperatureMin,
+    this.targetTemperatureMax,
   });
 
   final String orderId;
@@ -202,6 +211,9 @@ class HistoryOrderData {
   final String? distanceCharge;
   final String? tollCharge;
   final String? platformFee;
+  final bool requiresRefrigeration;
+  final double? targetTemperatureMin;
+  final double? targetTemperatureMax;
 }
 
 class TimelineStepData {

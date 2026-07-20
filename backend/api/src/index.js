@@ -28,7 +28,7 @@ import authRoutes from './routes/authRoutes.js'
 import healthRoutes from './routes/healthRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import lookupRoutes from './routes/lookupRoutes.js'
-
+import iotRoutes from './routes/iotRoutes.js'
 import logger from './middleware/logger.js'
 import { setupSwagger } from './config/swagger.js'
 import { requestIdMiddleware, requestLogger } from './middleware/requestId.js'
@@ -166,6 +166,7 @@ app.use('/api/v1/trips', tripRoutes)
   app.use('/api/driver/documents', documentRoutes)
   app.use('/api/trucks', truckRoutes)
   app.use('/api/v1', lookupRoutes)
+  app.use('/api/iot', telemetryLimiter, iotRoutes)
   app.use('/api/auth', authLimiter, authRoutes)
   app.use('/api/v1/admin', adminRoutes)
 
