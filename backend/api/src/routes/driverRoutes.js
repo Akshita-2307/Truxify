@@ -513,6 +513,76 @@ router.get('/:driverId/reputation', authenticate, userLimiter, requireRole(['dri
   }
 });
 
+// PUT /api/drivers/hos/status - Update Hours of Service status
+const hosStatusSchema = z.object({
+  status: z.enum(['off_duty', 'on_duty', 'driving', 'resting'])
+});
+
+router.put('/hos/status', authenticate, userLimiter, requireRole(['driver']), validateBody(hosStatusSchema), async (req, res) => {
+  try {
+    const { status } = req.body;
+    
+    // fetch current state
+    const { data: driver, error: fetchErr } = await supabase
+      .from('driver_details')
+      .select('hos_status, shift_start_time, accumulated_driving_minutes, accumulated_on_duty_minutes, last_status_update_time')
+      .eq('driver_id', req.user.id)
+      .maybeSingle();
+
+    if (fetchErr) return res.status(500).json({ error: 'Failed to fetch HoS state' });
+    if (!driver) return res.status(404).json({ error: 'Driver not found' });
+
+    const now = new Date();
+    let accumulatedDriving = driver.accumulated_driving_minutes || 0;
+    let accumulatedOnDuty = driver.accumulated_on_duty_minutes || 0;
+    let shiftStartTime = driver.shift_start_time;
+
+    if (driver.last_status_update_time) {
+      const lastUpdate = new Date(driver.last_status_update_time);
+      const diffMinutes = Math.floor((now - lastUpdate) / 60000);
+
+      // If off duty for > 10 hours, reset shift
+      if ((driver.hos_status === 'off_duty' || driver.hos_status === 'resting') && diffMinutes >= 600) {
+        accumulatedDriving = 0;
+        accumulatedOnDuty = 0;
+        shiftStartTime = now.toISOString();
+      } else {
+        if (driver.hos_status === 'driving') {
+          accumulatedDriving += diffMinutes;
+          accumulatedOnDuty += diffMinutes; // Driving counts as on-duty
+        } else if (driver.hos_status === 'on_duty') {
+          accumulatedOnDuty += diffMinutes;
+        }
+      }
+    } else {
+      shiftStartTime = now.toISOString();
+    }
+
+    const { error: updateErr } = await supabase
+      .from('driver_details')
+      .update({
+        hos_status: status,
+        accumulated_driving_minutes: accumulatedDriving,
+        accumulated_on_duty_minutes: accumulatedOnDuty,
+        last_status_update_time: now.toISOString(),
+        shift_start_time: shiftStartTime
+      })
+      .eq('driver_id', req.user.id);
+
+    if (updateErr) return res.status(500).json({ error: 'Failed to update HoS state' });
+
+    res.json({
+      hos_status: status,
+      accumulated_driving_minutes: accumulatedDriving,
+      accumulated_on_duty_minutes: accumulatedOnDuty,
+      shift_start_time: shiftStartTime
+    });
+  } catch (err) {
+    logger.error('Error updating HoS status:', err.message);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 export default router;
 
 // Resolves #2051: Composite indexes added for 2dsphere queries

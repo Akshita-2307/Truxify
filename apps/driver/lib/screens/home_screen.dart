@@ -20,6 +20,7 @@ import '../services/marketplace_repository.dart';
 import '../services/route_service.dart';
 import '../services/trip_service.dart';
 import '../services/location_service.dart';
+import '../services/hos_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/earnings_shimmer.dart';
@@ -129,7 +130,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<TripRecord> tripHistory = [];
 
   late final MarketplaceRepository _marketplaceRepo;
-  StreamSubscription<LoadOffer>? _loadSubscription;
+  StreamSubscription? _tripSubscription;
+
+  String _hosStatus = 'off_duty';
+  int _hosDrivingMinutes = 0;
+  int _hosOnDutyMinutes = 0;
+
   Timer? _autoHideTimer;
   LoadOffer? _latestNewLoad;
   bool _dismissedNewLoad = false;
@@ -182,6 +188,25 @@ class _HomeScreenState extends State<HomeScreen> {
     _initLocation();
     _subscribeToNewLoads();
     _loadDashboardMetrics();
+    _fetchHosStatus();
+  }
+
+  Future<void> _fetchHosStatus() async {
+    final status = await HosService.fetchCurrentStatus();
+    if (status != null && mounted) {
+      setState(() {
+        _hosStatus = status['hos_status'] ?? 'off_duty';
+        _hosDrivingMinutes = status['accumulated_driving_minutes'] ?? 0;
+        _hosOnDutyMinutes = status['accumulated_on_duty_minutes'] ?? 0;
+      });
+    }
+  }
+
+  Future<void> _toggleHosStatus(String newStatus) async {
+    final success = await HosService.updateStatus(newStatus);
+    if (success) {
+      await _fetchHosStatus();
+    }
   }
 
   @override
@@ -727,6 +752,62 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _isTripStarted
                     ? _buildActiveNavigationHeader(context)
                     : _buildSearchCard(context),
+              ),
+            ),
+
+            // HoS Warning Banner
+            if (_hosDrivingMinutes >= 660 || _hosOnDutyMinutes >= 840)
+              Positioned(
+                left: 12,
+                right: 12,
+                top: 96,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'HoS Limit Exceeded! Mandatory 30-min rest break required.',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+
+            // HoS Status Banner
+            Positioned(
+              left: 12,
+              right: 12,
+              top: (_hosDrivingMinutes >= 660 || _hosOnDutyMinutes >= 840) ? 156 : 96,
+              child: Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('HoS Status: ${_hosStatus.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text('Driving: ${(_hosDrivingMinutes / 60).toStringAsFixed(1)}h / 11h'),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => _toggleHosStatus('off_duty'),
+                            child: const Text('Off Duty', style: TextStyle(fontSize: 12)),
+                          ),
+                          TextButton(
+                            onPressed: () => _toggleHosStatus('driving'),
+                            child: const Text('Driving', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
               ),
             ),
 
