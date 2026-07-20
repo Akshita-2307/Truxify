@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 
@@ -1512,6 +1513,58 @@ router.get('/:id/route', authenticate, userLimiter, telemetryLimiter, requireRol
     }
     logger.error({ err }, 'Fetch order route exception');
     return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+});
+
+// POST /api/orders/:id/pod
+router.post('/:id/pod', authenticate, requireRole(['driver']), upload.fields([{ name: 'signature', maxCount: 1 }, { name: 'photo', maxCount: 1 }]), async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { data: order, error } = await orderRepository.findOrderById(orderId);
+    
+    if (error || !order) return res.status(404).json({ error: 'Order not found' });
+    if (order.driver_id !== req.user.id) return res.status(403).json({ error: 'Access Denied: Not your order' });
+
+    let signatureUrl = order.pod_signature_url;
+    let photoUrl = order.pod_photo_url;
+    const files = req.files || {};
+    
+    if (files.signature && files.signature[0]) {
+      const file = files.signature[0];
+      const ext = file.mimetype === 'image/png' ? 'png' : 'jpg';
+      const path = `${req.user.id}/pod_sig_${orderId}_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('driver-documents').upload(path, file.buffer, { contentType: file.mimetype });
+      if (!upErr) signatureUrl = path;
+    }
+
+    if (files.photo && files.photo[0]) {
+      const file = files.photo[0];
+      const ext = file.mimetype === 'image/png' ? 'png' : 'jpg';
+      const path = `${req.user.id}/pod_photo_${orderId}_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('driver-documents').upload(path, file.buffer, { contentType: file.mimetype });
+      if (!upErr) photoUrl = path;
+    }
+
+    const { data: updatedOrder, error: updateErr } = await orderRepository.updateOrder(orderId, {
+      pod_signature_url: signatureUrl,
+      pod_photo_url: photoUrl,
+      updated_at: new Date().toISOString()
+    });
+
+    if (updateErr) {
+      logger.error('Failed to update order with PoD:', updateErr.message);
+      return res.status(500).json({ error: 'Failed to update order with PoD URLs' });
+    }
+
+    return res.json({ message: 'Proof of Delivery uploaded successfully', order: updatedOrder });
+  } catch (err) {
+    logger.error('PoD upload error:', err.message);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

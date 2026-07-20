@@ -26,6 +26,9 @@ import '../widgets/earnings_shimmer.dart';
 import '../widgets/map_markers.dart';
 import 'destination_picker_screen.dart';
 import '../widgets/pulsing_location_dot.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../services/pod_storage_service.dart';
+import 'pod_capture_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -55,6 +58,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<List<ll.LatLng>>? _routeFuture;
   DestinationPickResult? _destination;
   bool _isSearchExpanded = false;
+
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _hasPendingPods = false;
 
   List<Marker>? _cachedMarkers;
   ll.LatLng? _lastDest;
@@ -182,6 +188,20 @@ class _HomeScreenState extends State<HomeScreen> {
     _initLocation();
     _subscribeToNewLoads();
     _loadDashboardMetrics();
+
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
+      _checkPendingPods();
+    });
+    _checkPendingPods();
+  }
+
+  Future<void> _checkPendingPods() async {
+    final pending = await podStorageService.getUnsyncedPods();
+    if (mounted) {
+      setState(() {
+        _hasPendingPods = pending.isNotEmpty;
+      });
+    }
   }
 
   @override
@@ -196,6 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     _loadSubscription?.cancel();
     _autoHideTimer?.cancel();
     _mapController.dispose();
@@ -716,6 +737,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 showDestinationChip: _destination != null,
               ),
             ),
+
+            if (_hasPendingPods)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: Container(
+                  color: Colors.orange,
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                  child: const Text(
+                    'Offline Mode - Pending Sync',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
+              ),
 
             // Top Bar
             Positioned(
@@ -1600,8 +1637,20 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildTripSpec('Est. Payout', _activeTripPayout.isNotEmpty ? _activeTripPayout : '--'),
             ],
           ),
-          const SizedBox(height: 16),
-          if (_isTripStarted) ...[
+            const SizedBox(height: 16),
+            if (_isTripStarted && _activeTripId != null) ...[
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => PodCaptureScreen(orderId: _activeTripId!)));
+                  _checkPendingPods();
+                },
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('Capture Proof of Delivery'),
+                style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (_isTripStarted) ...[
             SlideToConfirmButton(
               label: 'Slide to Complete Trip',
               backgroundColor: TruxifyColors.success,
