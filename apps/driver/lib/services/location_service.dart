@@ -6,6 +6,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'battery_service.dart';
+
 class LocationService {
   LocationService._privateConstructor();
   static final LocationService instance = LocationService._privateConstructor();
@@ -200,6 +202,7 @@ class LocationService {
       }
 
       if (_channel != null) {
+        final batteryInfo = BatteryService.instance.currentInfo;
         final payload = {
           'event': 'location_ping',
           'data': {
@@ -215,6 +218,8 @@ class LocationService {
             'bearing': position.heading,
             'device_timestamp': DateTime.now().toIso8601String(),
             'timestamp': DateTime.now().toIso8601String(),
+            'battery_level': batteryInfo.level,
+            'charging_status': batteryInfo.isCharging ? 'charging' : 'discharging',
           }
         };
         _channel!.sink.add(jsonEncode(payload));
