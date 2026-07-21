@@ -677,7 +677,7 @@ export class OrderLifecycleService {
             };
           }
 
-          await this.orderTimelineService.markMilestoneCompleted(order.order_display_id, 'Order Placed');
+          await this.orderTimelineService.insertCancelEvent(order.order_display_id);
           await expireDeliveryOtps(order.id);
 
           return {
@@ -736,7 +736,7 @@ export class OrderLifecycleService {
 
       const cancellationFee = updatedOrder?.cancellation_fee ?? 0;
 
-      await this.orderTimelineService.markMilestoneCompleted(order.order_display_id, 'Order Placed');
+      await this.orderTimelineService.insertCancelEvent(order.order_display_id);
       await expireDeliveryOtps(order.id);
 
       return {
