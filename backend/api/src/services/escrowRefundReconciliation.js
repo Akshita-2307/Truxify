@@ -107,7 +107,12 @@ export async function reconcilePendingEscrowRefunds(orderRepository) {
 
         if (!refundTxHash) {
           const submitted = await submitEscrowRefund(order.order_display_id);
-          receipt = await submitted.waitForConfirmation();
+          if (submitted.waitForConfirmation) {
+            receipt = await submitted.waitForConfirmation();
+          } else {
+            logger.warn(`[escrow-reconciliation] waitForConfirmation unavailable for ${order.order_display_id} — escrow contract may not be initialized.`);
+            receipt = { hash: submitted.txHash };
+          }
           refundTxHash = receipt.hash ?? submitted.txHash;
         } else {
           receipt = await confirmEscrowRefund(refundTxHash);
