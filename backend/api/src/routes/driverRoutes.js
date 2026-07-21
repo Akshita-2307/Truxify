@@ -135,7 +135,7 @@ import { requirePolicy } from '../middleware/requirePolicy.js';
 import { userLimiter, createStore } from '../middleware/rateLimiter.js';
 
 import { validateBody, validateParams } from '../middleware/validate.js';
-import { driverOnlineSchema, withdrawSchema, uuidParamSchema, paramIdSchema, predictDriverProfitSchema } from '../validation/requestSchemas.js';
+import { driverOnlineSchema, withdrawSchema, uuidParamSchema, paramIdSchema, predictDriverProfitSchema, uuidSchema } from '../validation/requestSchemas.js';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import logger from '../middleware/logger.js';
@@ -256,10 +256,13 @@ router.put('/online', authenticate, userLimiter, requirePolicy('driver:toggle-on
       .update({ is_online, updated_at: new Date().toISOString() })
       .eq('user_id', req.user.id)
       .select('is_online')
-      .single();
+      .maybeSingle();
 
     if (error) {
       return res.status(500).json({ error: 'Failed to update online state.', details: error.message });
+    }
+    if (!details) {
+      return res.status(404).json({ error: 'Driver profile not found.' });
     }
 
     res.json({
@@ -737,18 +740,19 @@ router.patch(
  */
 router.get('/bids', authenticate, userLimiter, requirePolicy('driver:view-bids'), async (req, res) => {
   try {
-    const rawPage = req.query.page;
-    const rawLimit = req.query.limit;
-    const parsedPage = parseInt(rawPage, 10);
-    const parsedLimit = parseInt(rawLimit, 10);
-    if (rawPage !== undefined && (!Number.isInteger(parsedPage) || parsedPage < 1)) {
-      return res.status(400).json({ error: 'page must be a positive integer' });
+    const pageParam = req.query.page ?? '1';
+    const limitParam = req.query.limit ?? '10';
+    const page = typeof pageParam === 'string' ? Number(pageParam) : NaN;
+    const limit = typeof limitParam === 'string' ? Number(limitParam) : NaN;
+
+    if (!Number.isInteger(page) || page < 1) {
+      return res.status(400).json({ error: 'page must be greater than or equal to 1' });
     }
-    if (rawLimit !== undefined && (!Number.isInteger(parsedLimit) || parsedLimit < 1)) {
-      return res.status(400).json({ error: 'limit must be a positive integer' });
+
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return res.status(400).json({ error: 'limit must be between 1 and 100' });
     }
-    const page = parsedPage || 1;
-    const limit = Math.min(100, Math.max(1, parsedLimit || 10));
+
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
