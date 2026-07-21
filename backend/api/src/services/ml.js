@@ -347,13 +347,6 @@ export async function recommendLoads({ userId, bookingHistory = [], ratedDrivers
     top_n: topN,
   };
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(5000),
-  });
-
   return handleResponse(response);
 }
 
