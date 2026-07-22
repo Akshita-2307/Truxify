@@ -20,11 +20,13 @@ import '../services/geocode_service.dart';
 import '../services/marketplace_repository.dart';
 import '../services/route_service.dart';
 import '../services/trip_service.dart';
+import '../services/battery_service.dart';
 import '../services/location_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../theme/app_theme.dart';
 import '../widgets/map_markers.dart';
 import '../widgets/home/offline_banner.dart';
+import '../widgets/home/low_battery_banner.dart';
 import '../widgets/home/active_navigation_header.dart';
 import '../widgets/home/search_destination_card.dart';
 import '../widgets/home/new_load_notification_banner.dart';
@@ -156,6 +158,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _networkError;
   int _retryCount = 0;
 
+  final BatteryService _batteryService = BatteryService.instance;
+  int _batteryLevel = 100;
+  bool _isCharging = false;
+  bool _criticalDialogShown = false;
+
   String _sanitizeCoordinate(dynamic coord) {
     if (coord == null) return '0.0';
     if (coord is double) return coord.toStringAsFixed(6);
@@ -196,6 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _subscribeToNewLoads();
     _loadDashboardMetrics();
     _loadHeatmapData();
+    _initBatteryMonitoring();
   }
 
   Future<void> _loadHeatmapData() async {
@@ -211,6 +219,61 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _initBatteryMonitoring() {
+    _batteryService.addListener(_onBatteryChanged);
+    _batteryService.startMonitoring();
+  }
+
+  void _onBatteryChanged() {
+    if (!mounted) return;
+    final info = _batteryService.currentInfo;
+    setState(() {
+      _batteryLevel = info.level;
+      _isCharging = info.isCharging;
+    });
+    if (info.isCritical && !_criticalDialogShown) {
+      _criticalDialogShown = true;
+      _showCriticalBatteryDialog();
+    }
+  }
+
+  void _showCriticalBatteryDialog() {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(
+          Icons.battery_alert_rounded,
+          color: TruxifyColors.errorRed,
+          size: 48,
+        ),
+        title: const Text('Critical Battery'),
+        content: Text(
+          'Battery is at $_batteryLevel%. '
+          'Please connect your charger immediately to continue tracking.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Dismiss'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              BatteryService.instance.openBatterySettings();
+            },
+            child: const Text('Open Battery Settings'),
+          ),
+        ],
+      ),
+    ).then((_) {
+      if (mounted && _batteryService.currentInfo.isCritical) {
+        _criticalDialogShown = false;
+      }
+    });
+  }
+
   @override
   void didUpdateWidget(HomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -223,6 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _batteryService.removeListener(_onBatteryChanged);
     _connectivitySubscription?.cancel();
     _loadSubscription?.cancel();
     _autoHideTimer?.cancel();
@@ -836,6 +900,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     if (_isOffline) const OfflineBanner(),
+                    if (!_isCharging && _batteryLevel <= 20)
+                      LowBatteryBanner(
+                        batteryLevel: _batteryLevel,
+                        isCritical: _batteryLevel <= 10,
+                      ),
                     _isTripStarted
                         ? ActiveNavigationHeader(
                             destinationAddress:
@@ -1071,6 +1140,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             todayEarnings: _todayEarnings,
                             driverRating: _driverRating,
                             onToggleOnline: _toggleOnlineState,
+                            batteryLevel: _batteryLevel,
+                            isCharging: _isCharging,
                           )
                         : ActiveTripSheet(
                             isTripStarted: _isTripStarted,
