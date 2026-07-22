@@ -295,7 +295,7 @@ class _TripsScreenState extends State<TripsScreen> {
       route: row['route_label']?.toString() ?? 'Unknown route',
       date: row['trip_date']?.toString() ?? '',
       items: tripItems.map((i) => i.goods).toList(),
-      itemCount: row['distance']?.toString() ?? '',
+      itemCount: '${tripItems.length} item${tripItems.length == 1 ? '' : 's'} · ${row['distance']?.toString() ?? ''}',
       distance: row['distance']?.toString() ?? '',
       earnings: '₹${((row['net_earnings'] ?? 0) / 100).toStringAsFixed(0)}',
       status: _mapStatus(row['status']?.toString()),
